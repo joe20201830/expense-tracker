@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <meta name="theme-color" content="#4CAF50" />
+  <meta name="theme-color" content="#0E0E1C" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Expenses" />
   <link rel="manifest" href="/manifest.json" />
   <title>Expense Tracker</title>
@@ -14,15 +14,16 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --green: #4CAF50;
-      --green-dark: #388E3C;
-      --green-light: #E8F5E9;
-      --bg: #F3F6F3;
-      --card: #FFFFFF;
-      --text: #1C1C1E;
-      --muted: #8E8E93;
-      --border: #EFEFEF;
-      --red: #FF3B30;
+      --primary: #7C6FF7;
+      --primary-dark: #5B52D6;
+      --primary-glow: rgba(124, 111, 247, 0.18);
+      --bg: #0E0E1C;
+      --card: #1A1A2E;
+      --card2: #16162A;
+      --text: #EEEEFF;
+      --muted: #7070A0;
+      --border: #26264A;
+      --red: #FF6B8A;
       --nav-h: 68px;
     }
 
@@ -42,37 +43,37 @@
     .page-header p { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
 
     /* ── Cards ── */
-    .card { background: var(--card); border-radius: 18px; padding: 20px; margin: 0 16px 12px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+    .card { background: var(--card); border-radius: 18px; padding: 20px; margin: 0 16px 12px; box-shadow: 0 2px 12px rgba(0,0,0,.3); }
 
     /* ── Form ── */
     .field { margin-bottom: 16px; }
     .field:last-child { margin-bottom: 0; }
     label { display: block; font-size: .72rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
-    input, select, textarea { width: 100%; height: 50px; padding: 0 14px; border: 1.5px solid var(--border); border-radius: 12px; font-size: 1rem; color: var(--text); background: #FAFAFA; appearance: none; -webkit-appearance: none; outline: none; transition: border-color .15s, background .15s; }
-    input:focus, select:focus, textarea:focus { border-color: var(--green); background: #fff; }
+    input, select, textarea { width: 100%; height: 50px; padding: 0 14px; border: 1.5px solid var(--border); border-radius: 12px; font-size: 1rem; color: var(--text); background: var(--card2); appearance: none; -webkit-appearance: none; outline: none; transition: border-color .15s; }
+    input:focus, select:focus, textarea:focus { border-color: var(--primary); }
     textarea { height: 76px; padding: 13px 14px; resize: none; }
     .amount-row { display: flex; gap: 10px; }
     .amount-row input { flex: 1; }
     .amount-row select { width: 88px; flex-shrink: 0; }
-    select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238E8E93' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
-    .submit-btn { width: 100%; height: 54px; background: var(--green); color: #fff; border: none; border-radius: 14px; font-size: 1.05rem; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s; margin-top: 6px; }
-    .submit-btn:active { transform: scale(.98); background: var(--green-dark); }
-    .submit-btn:disabled { opacity: .55; cursor: not-allowed; }
+    select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237070A0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+    .submit-btn { width: 100%; height: 54px; background: var(--primary); color: #fff; border: none; border-radius: 14px; font-size: 1.05rem; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s; margin-top: 6px; }
+    .submit-btn:active { transform: scale(.98); background: var(--primary-dark); }
+    .submit-btn:disabled { opacity: .45; cursor: not-allowed; }
 
     /* ── Month hero card (Add tab) ── */
-    .hero-card { background: var(--green); border-radius: 22px; margin: 0 16px 14px; padding: 24px 22px; color: #fff; }
-    .hero-card .hero-label { font-size: .8rem; opacity: .8; margin-bottom: 6px; }
+    .hero-card { background: linear-gradient(135deg, #2D2B6B 0%, #4A3F9F 100%); border-radius: 22px; margin: 0 16px 14px; padding: 24px 22px; color: #fff; border: 1px solid #3D3A7A; }
+    .hero-card .hero-label { font-size: .8rem; opacity: .7; margin-bottom: 6px; }
     .hero-card .hero-amount { font-size: 2.4rem; font-weight: 700; letter-spacing: -1.5px; line-height: 1; }
-    .hero-card .hero-change { font-size: .8rem; margin-top: 8px; opacity: .9; }
+    .hero-card .hero-change { font-size: .8rem; margin-top: 8px; opacity: .85; }
 
     /* ── Bottom nav ── */
-    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: var(--nav-h); background: #fff; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-around; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -2px 16px rgba(0,0,0,.07); z-index: 100; }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: var(--nav-h); background: var(--card); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-around; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -4px 24px rgba(0,0,0,.4); z-index: 100; }
     .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; cursor: pointer; padding: 8px 0; color: var(--muted); font-size: .68rem; font-weight: 500; transition: color .15s; }
-    .nav-btn.active { color: var(--green); }
+    .nav-btn.active { color: var(--primary); }
     .nav-btn svg { width: 24px; height: 24px; }
 
     /* ── Toast ── */
-    #toast { position: fixed; bottom: calc(var(--nav-h) + 16px); left: 50%; transform: translateX(-50%) translateY(16px); background: var(--text); color: #fff; padding: 11px 20px; border-radius: 100px; font-size: .83rem; font-weight: 500; opacity: 0; transition: opacity .25s, transform .25s; white-space: nowrap; z-index: 999; pointer-events: none; }
+    #toast { position: fixed; bottom: calc(var(--nav-h) + 16px); left: 50%; transform: translateX(-50%) translateY(16px); background: var(--primary); color: #fff; padding: 11px 20px; border-radius: 100px; font-size: .83rem; font-weight: 500; opacity: 0; transition: opacity .25s, transform .25s; white-space: nowrap; z-index: 999; pointer-events: none; }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     #toast.error { background: var(--red); }
 
@@ -80,7 +81,7 @@
     .filters { display: flex; gap: 8px; padding: 0 16px 12px; }
     .filters select { height: 38px; font-size: .83rem; border-radius: 10px; flex: 1; }
     .expense-list { padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
-    .expense-item { background: var(--card); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 13px; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
+    .expense-item { background: var(--card); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 13px; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
     .cat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0; }
     .expense-info { flex: 1; min-width: 0; }
     .expense-info .cat-name { font-weight: 600; font-size: .93rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -89,14 +90,14 @@
     .empty { text-align: center; color: var(--muted); font-size: .88rem; padding: 36px 0; }
 
     /* ── Analytics ── */
-    .stat-card { background: var(--card); border-radius: 18px; padding: 20px; margin: 0 16px 12px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+    .stat-card { background: var(--card); border-radius: 18px; padding: 20px; margin: 0 16px 12px; box-shadow: 0 2px 12px rgba(0,0,0,.3); }
     .stat-label { font-size: .72rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
     .stat-value { font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; }
     .stat-badge { display: inline-block; font-size: .75rem; font-weight: 600; padding: 3px 9px; border-radius: 100px; margin-top: 8px; }
-    .badge-up { background: #FFEBEE; color: var(--red); }
-    .badge-down { background: var(--green-light); color: var(--green-dark); }
-    .badge-neutral { background: #F0F0F0; color: var(--muted); }
-    .chart-card { background: var(--card); border-radius: 18px; padding: 20px; margin: 0 16px 12px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+    .badge-up { background: rgba(255,107,138,.15); color: var(--red); }
+    .badge-down { background: rgba(124,111,247,.15); color: #A89BFF; }
+    .badge-neutral { background: rgba(112,112,160,.15); color: var(--muted); }
+    .chart-card { background: var(--card); border-radius: 18px; padding: 20px; margin: 0 16px 12px; box-shadow: 0 2px 12px rgba(0,0,0,.3); }
     .chart-title { font-size: .72rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 16px; }
     .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
     .chart-header .chart-title { margin-bottom: 0; }
@@ -420,8 +421,8 @@ function renderAnalytics(expenses) {
   if (weeklyChart) weeklyChart.destroy();
   weeklyChart = new Chart(document.getElementById("weeklyChart"), {
     type: "bar",
-    data: { labels: weekLabels, datasets: [{ data: weekTotals, backgroundColor: weekDays.map(d => d === today ? "#4CAF50" : "#C8E6C9"), borderRadius: 8, borderSkipped: false }] },
-    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{display:false}, border:{display:false} }, y:{ grid:{color:"#F0F0F0"}, border:{display:false}, ticks:{maxTicksLimit:4} } }, responsive:true, maintainAspectRatio:true }
+    data: { labels: weekLabels, datasets: [{ data: weekTotals, backgroundColor: weekDays.map(d => d === today ? "#7C6FF7" : "#2D2B6B"), borderRadius: 8, borderSkipped: false }] },
+    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{display:false}, border:{display:false}, ticks:{color:"#7070A0"} }, y:{ grid:{color:"#26264A"}, border:{display:false}, ticks:{maxTicksLimit:4, color:"#7070A0"} } }, responsive:true, maintainAspectRatio:true }
   });
 
   // Monthly line chart (last 6 months)
@@ -430,8 +431,8 @@ function renderAnalytics(expenses) {
   if (monthlyChart) monthlyChart.destroy();
   monthlyChart = new Chart(document.getElementById("monthlyChart"), {
     type: "line",
-    data: { labels: months.map(m => m.label), datasets: [{ data: months.map(m => m.total), borderColor:"#4CAF50", backgroundColor:"rgba(76,175,80,.1)", borderWidth:2.5, fill:true, tension:0.4, pointBackgroundColor:"#4CAF50", pointRadius:4 }] },
-    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{display:false}, border:{display:false} }, y:{ grid:{color:"#F0F0F0"}, border:{display:false}, ticks:{maxTicksLimit:4} } }, responsive:true, maintainAspectRatio:true }
+    data: { labels: months.map(m => m.label), datasets: [{ data: months.map(m => m.total), borderColor:"#7C6FF7", backgroundColor:"rgba(124,111,247,.12)", borderWidth:2.5, fill:true, tension:0.4, pointBackgroundColor:"#7C6FF7", pointRadius:4 }] },
+    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{display:false}, border:{display:false}, ticks:{color:"#7070A0"} }, y:{ grid:{color:"#26264A"}, border:{display:false}, ticks:{maxTicksLimit:4, color:"#7070A0"} } }, responsive:true, maintainAspectRatio:true }
   });
 
   // Category month picker
