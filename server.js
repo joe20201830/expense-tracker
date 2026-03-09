@@ -99,10 +99,8 @@ async function fetchExpenses() {
     range: `${SHEET_NAME}!A:G`,
   });
   const rows = result.data.values || [];
-  if (rows.length <= 1) return []; // only header or empty
-  const data = rows.slice(1); // skip header
-  const last10 = data.slice(-10).reverse();
-  return last10.map(([date, amount, currency, category, description, method, loggedAt]) => ({
+  if (rows.length <= 1) return [];
+  return rows.slice(1).reverse().map(([date, amount, currency, category, description, method, loggedAt]) => ({
     date, amount, currency, category, description, method, loggedAt,
   }));
 }
@@ -116,7 +114,17 @@ const server = http.createServer(async (req, res) => {
     return res.end(file);
   }
 
-  if (req.method === "GET" && req.url === "/expenses") {
+  // Serve static PWA files
+  if (req.method === "GET" && (req.url === "/manifest.json" || req.url === "/sw.js" || req.url === "/icon.svg")) {
+    const filePath = path.join(__dirname, req.url.slice(1));
+    if (fs.existsSync(filePath)) {
+      const ext = req.url.endsWith(".json") ? "application/json" : req.url.endsWith(".svg") ? "image/svg+xml" : "application/javascript";
+      res.writeHead(200, { "Content-Type": ext });
+      return res.end(fs.readFileSync(filePath));
+    }
+  }
+
+  if (req.method === "GET" && req.url === "/expenses/all") {
     try {
       const expenses = await fetchExpenses();
       return json(res, 200, { ok: true, expenses });
