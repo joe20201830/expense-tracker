@@ -115,10 +115,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Serve static PWA files
-  if (req.method === "GET" && (req.url === "/manifest.json" || req.url === "/sw.js" || req.url === "/icon.svg")) {
+  if (req.method === "GET" && (req.url === "/manifest.json" || req.url === "/sw.js" || req.url === "/icon.svg" || req.url === "/icon.png")) {
     const filePath = path.join(__dirname, req.url.slice(1));
     if (fs.existsSync(filePath)) {
-      const ext = req.url.endsWith(".json") ? "application/json" : req.url.endsWith(".svg") ? "image/svg+xml" : "application/javascript";
+      const ext = req.url.endsWith(".json") ? "application/json" : req.url.endsWith(".svg") ? "image/svg+xml" : req.url.endsWith(".png") ? "image/png" : "application/javascript";
       res.writeHead(200, { "Content-Type": ext });
       return res.end(fs.readFileSync(filePath));
     }
