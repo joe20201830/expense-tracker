@@ -81,13 +81,21 @@
     .filters { display: flex; gap: 8px; padding: 0 16px 12px; }
     .filters select { height: 38px; font-size: .83rem; border-radius: 10px; flex: 1; }
     .expense-list { padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
-    .expense-item { background: var(--card); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 13px; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+    .swipe-wrapper { position: relative; border-radius: 14px; overflow: hidden; }
+    .swipe-actions { position: absolute; right: 0; top: 0; bottom: 0; display: flex; }
+    .action-btn { width: 64px; height: 100%; border: none; cursor: pointer; font-size: 1.3rem; display: flex; align-items: center; justify-content: center; }
+    .action-edit { background: var(--primary); }
+    .action-delete { background: var(--red); }
+    .expense-item { background: var(--card); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 13px; box-shadow: 0 2px 8px rgba(0,0,0,.25); position: relative; transform: translateX(0); transition: transform .2s ease; will-change: transform; touch-action: pan-y; }
     .cat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0; }
     .expense-info { flex: 1; min-width: 0; }
     .expense-info .cat-name { font-weight: 600; font-size: .93rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .expense-info .meta { font-size: .76rem; color: var(--muted); margin-top: 2px; }
     .expense-amount { font-weight: 700; font-size: .95rem; text-align: right; flex-shrink: 0; }
     .empty { text-align: center; color: var(--muted); font-size: .88rem; padding: 36px 0; }
+    /* ── Edit mode ── */
+    .cancel-btn { width: 100%; height: 44px; background: none; color: var(--muted); border: 1.5px solid var(--border); border-radius: 14px; font-size: .95rem; font-weight: 500; cursor: pointer; margin-top: 10px; display: none; }
+    .edit-mode-banner { background: var(--primary-glow); border: 1px solid var(--primary); border-radius: 12px; padding: 10px 14px; margin: 0 16px 12px; font-size: .83rem; color: var(--primary); font-weight: 500; display: none; }
 
     /* ── Analytics ── */
     .stat-card { background: var(--card); border-radius: 18px; padding: 20px; margin: 0 16px 12px; box-shadow: 0 2px 12px rgba(0,0,0,.3); }
@@ -120,6 +128,8 @@
       <h1>Add Expense</h1>
       <p id="today-label"></p>
     </div>
+
+    <div class="edit-mode-banner" id="edit-banner">✏️ Editing expense — make changes and tap Update</div>
 
     <div class="hero-card">
       <div class="hero-label">This Month's Spending</div>
@@ -164,6 +174,7 @@
           <textarea id="description" placeholder="e.g. Lunch with team"></textarea>
         </div>
         <button type="submit" class="submit-btn" id="submit-btn">+ Add Expense</button>
+        <button type="button" class="cancel-btn" id="cancel-edit-btn" onclick="cancelEdit()">Cancel Edit</button>
       </form>
     </div>
   </div>
@@ -264,6 +275,8 @@ let weeklyChart = null;
 let monthlyChart = null;
 let analyticsLoaded = false;
 let historyLoaded = false;
+let editingId = null;
+let openSwipeItem = null;
 
 // ── Init ──────────────────────────────────────────────────────
 document.getElementById("date").value = today;
@@ -322,11 +335,11 @@ function loadHeroSummary(expenses) {
   ch.textContent = (pct >= 0 ? "↑ " : "↓ ") + Math.abs(pct) + "% vs last month";
 }
 
-// ── Submit ────────────────────────────────────────────────────
+// ── Submit (add + edit) ───────────────────────────────────────
 document.getElementById("form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = document.getElementById("submit-btn");
-  btn.disabled = true; btn.textContent = "Saving…";
+  btn.disabled = true; btn.textContent = editingId ? "Updating…" : "Saving…";
   const payload = {
     date: document.getElementById("date").value,
     amount: parseFloat(document.getElementById("amount").value),
@@ -336,20 +349,69 @@ document.getElementById("form").addEventListener("submit", async (e) => {
     description: document.getElementById("description").value.trim(),
   };
   try {
-    const res = await fetch("/expense", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
+    const url = editingId ? `/expense/${editingId}` : "/expense";
+    const method = editingId ? "PUT" : "POST";
+    const res = await fetch(url, { method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
     const data = await res.json();
     if (data.ok) {
-      showToast("Saved ✓");
-      document.getElementById("amount").value = "";
-      document.getElementById("description").value = "";
+      showToast(editingId ? "Updated ✓" : "Saved ✓");
+      if (editingId) {
+        cancelEdit();
+      } else {
+        document.getElementById("amount").value = "";
+        document.getElementById("description").value = "";
+      }
       invalidateCache();
       fetchAll().then(loadHeroSummary).catch(() => {});
     } else {
       showToast(data.error || "Error — try again", true);
     }
   } catch { showToast("Network error", true); }
-  finally { btn.disabled = false; btn.textContent = "+ Add Expense"; }
+  finally { btn.disabled = false; btn.textContent = editingId ? "Update Expense" : "+ Add Expense"; }
 });
+
+// ── Edit / Delete ─────────────────────────────────────────────
+function startEdit(expense) {
+  editingId = expense.id;
+  document.getElementById("date").value = expense.date;
+  document.getElementById("amount").value = expense.amount;
+  document.getElementById("currency").value = expense.currency;
+  document.getElementById("category").value = expense.category;
+  document.getElementById("method").value = expense.method;
+  document.getElementById("description").value = expense.description || "";
+  document.getElementById("submit-btn").textContent = "Update Expense";
+  document.getElementById("cancel-edit-btn").style.display = "block";
+  document.getElementById("edit-banner").style.display = "block";
+  switchTab("add");
+  document.querySelector(".card").scrollIntoView({ behavior: "smooth" });
+}
+
+function cancelEdit() {
+  editingId = null;
+  document.getElementById("submit-btn").textContent = "+ Add Expense";
+  document.getElementById("cancel-edit-btn").style.display = "none";
+  document.getElementById("edit-banner").style.display = "none";
+  document.getElementById("form").reset();
+  document.getElementById("date").value = today;
+}
+
+async function deleteExpense(id, wrapper) {
+  if (!confirm("Delete this expense?")) return;
+  try {
+    const res = await fetch(`/expense/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (data.ok) {
+      showToast("Deleted");
+      wrapper.remove();
+      invalidateCache();
+      fetchAll().then(loadHeroSummary).catch(() => {});
+      const remaining = document.querySelectorAll(".swipe-wrapper").length;
+      document.getElementById("history-subtitle").textContent = remaining + " transaction" + (remaining !== 1 ? "s" : "");
+    } else {
+      showToast(data.error || "Delete failed", true);
+    }
+  } catch { showToast("Network error", true); }
+}
 
 // ── History ───────────────────────────────────────────────────
 async function loadHistory() {
@@ -374,14 +436,72 @@ function renderHistory(expenses) {
   const el = document.getElementById("history-list");
   if (!list.length) { el.innerHTML = '<div class="empty">No expenses found.</div>'; return; }
   el.innerHTML = list.map(e => `
-    <div class="expense-item">
-      <div class="cat-icon" style="background:${CAT_COLORS[e.category] || "#eee"}22">${ICONS[e.category] || "📦"}</div>
-      <div class="expense-info">
-        <div class="cat-name">${e.category}${e.description ? " · " + e.description : ""}</div>
-        <div class="meta">${e.date} · ${e.method}</div>
+    <div class="swipe-wrapper">
+      <div class="swipe-actions">
+        <button class="action-btn action-edit" aria-label="Edit">✏️</button>
+        <button class="action-btn action-delete" aria-label="Delete">🗑️</button>
       </div>
-      <div class="expense-amount">${e.currency} ${Number(e.amount).toLocaleString()}</div>
+      <div class="expense-item">
+        <div class="cat-icon" style="background:${CAT_COLORS[e.category] || "#eee"}22">${ICONS[e.category] || "📦"}</div>
+        <div class="expense-info">
+          <div class="cat-name">${e.category}${e.description ? " · " + e.description : ""}</div>
+          <div class="meta">${e.date} · ${e.method}</div>
+        </div>
+        <div class="expense-amount">${e.currency} ${Number(e.amount).toLocaleString()}</div>
+      </div>
     </div>`).join("");
+  el.querySelectorAll(".swipe-wrapper").forEach((wrapper, i) => {
+    const expense = list[i];
+    attachSwipe(wrapper);
+    wrapper.querySelector(".action-edit").onclick = () => startEdit(expense);
+    wrapper.querySelector(".action-delete").onclick = () => deleteExpense(expense.id, wrapper);
+  });
+}
+
+function attachSwipe(wrapper) {
+  const item = wrapper.querySelector(".expense-item");
+  const OPEN_W = 128;
+  const SNAP = 60;
+  let startX = 0, startY = 0, dragging = false, open = false;
+
+  item.addEventListener("touchstart", (e) => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    dragging = false;
+    item.style.transition = "none";
+  }, { passive: true });
+
+  item.addEventListener("touchmove", (e) => {
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (!dragging && Math.abs(dy) > Math.abs(dx)) return;
+    dragging = true;
+    const base = open ? -OPEN_W : 0;
+    const x = Math.min(0, Math.max(-OPEN_W, base + dx));
+    item.style.transform = `translateX(${x}px)`;
+  }, { passive: true });
+
+  item.addEventListener("touchend", (e) => {
+    if (!dragging) return;
+    item.style.transition = "transform .2s ease";
+    const dx = e.changedTouches[0].clientX - startX;
+    if (!open && dx < -SNAP) {
+      if (openSwipeItem && openSwipeItem !== item) closeSwipeItem(openSwipeItem);
+      item.style.transform = `translateX(-${OPEN_W}px)`;
+      open = true; openSwipeItem = item;
+    } else if (open && dx > SNAP) {
+      item.style.transform = "translateX(0)"; open = false; openSwipeItem = null;
+    } else {
+      item.style.transform = open ? `translateX(-${OPEN_W}px)` : "translateX(0)";
+    }
+    dragging = false;
+  });
+}
+
+function closeSwipeItem(item) {
+  item.style.transition = "transform .2s ease";
+  item.style.transform = "translateX(0)";
+  openSwipeItem = null;
 }
 
 // ── Analytics ─────────────────────────────────────────────────
@@ -474,6 +594,13 @@ function last6Months(now) {
     return { key: monthKey(d), label: d.toLocaleString("en", { month:"short" }), total: 0 };
   });
 }
+
+// Close open swipe on tap elsewhere
+document.addEventListener("touchstart", (e) => {
+  if (openSwipeItem && !openSwipeItem.closest(".swipe-wrapper").contains(e.target)) {
+    closeSwipeItem(openSwipeItem);
+  }
+}, { passive: true });
 
 // ── PWA ───────────────────────────────────────────────────────
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});

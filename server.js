@@ -3,6 +3,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { google } = require("googleapis");
+const { randomUUID } = require("crypto");
 
 const PORT = process.env.PORT || 3003;
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
@@ -62,7 +63,7 @@ async function ensureHeader(sheets) {
       range: `${SHEET_NAME}!A1`,
       valueInputOption: "RAW",
       requestBody: {
-        values: [["Date", "Amount", "Currency", "Category", "Description", "Method", "Logged At"]],
+        values: [["Date", "Amount", "Currency", "Category", "Description", "Method", "Logged At", "ID"]],
       },
     });
   }
@@ -80,10 +81,11 @@ async function appendExpense(expense) {
     expense.description || "",
     expense.method,
     new Date().toISOString(),
+    expense.id || randomUUID(),
   ];
   const result = await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A:G`,
+    range: `${SHEET_NAME}!A:H`,
     valueInputOption: "RAW",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
@@ -96,12 +98,12 @@ async function fetchExpenses() {
   const sheets = google.sheets({ version: "v4", auth });
   const result = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A:G`,
+    range: `${SHEET_NAME}!A:H`,
   });
   const rows = result.data.values || [];
   if (rows.length <= 1) return [];
-  return rows.slice(1).reverse().map(([date, amount, currency, category, description, method, loggedAt]) => ({
-    date, amount, currency, category, description, method, loggedAt,
+  return rows.slice(1).reverse().map(([date, amount, currency, category, description, method, loggedAt, id]) => ({
+    date, amount, currency, category, description, method, loggedAt, id,
   }));
 }
 
@@ -171,6 +173,72 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       console.error("Sheets error:", e.message);
       return json(res, 500, { ok: false, error: "Failed to write to Google Sheet" });
+    }
+  }
+
+  if (req.method === "DELETE" && req.url.startsWith("/expense/")) {
+    const id = req.url.split("/").pop();
+    try {
+      const auth = getAuthClient();
+      const sheets = google.sheets({ version: "v4", auth });
+      const result = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A:H`,
+      });
+      const rows = result.data.values || [];
+      const rowIndex = rows.findIndex(row => row[7] === id);
+      
+      if (rowIndex === -1) return json(res, 404, { ok: false, error: "Expense not found" });
+      
+      const request = {
+        requests: [{
+          deleteDimension: {
+            range: { sheetId: 0, dimension: "ROWS", startIndex: rowIndex, endIndex: rowIndex + 1 }
+          }
+        }]
+      };
+      await sheets.spreadsheets.batchUpdate({ spreadsheetId: SPREADSHEET_ID, requestBody: request });
+      
+      return json(res, 200, { ok: true });
+    } catch (e) {
+      console.error("Delete error:", e.message);
+      return json(res, 500, { ok: false, error: "Failed to delete from Google Sheet" });
+    }
+  }
+
+  if (req.method === "PUT" && req.url.startsWith("/expense/")) {
+    const id = req.url.split("/").pop();
+    let body;
+    try { body = await parseBody(req); } catch (e) { return json(res, 400, { ok: false, error: "Invalid JSON body" }); }
+
+    const { date, amount, currency, category, description, method } = body;
+    if (!date || isNaN(Date.parse(date))) return json(res, 400, { ok: false, error: "Valid date is required" });
+    if (amount == null || isNaN(Number(amount)) || Number(amount) <= 0) return json(res, 400, { ok: false, error: "Amount must be positive" });
+    if (!VALID_CATEGORIES.includes(category)) return json(res, 400, { ok: false, error: "Invalid category" });
+    if (!VALID_METHODS.includes(method)) return json(res, 400, { ok: false, error: "Invalid payment method" });
+
+    try {
+      const auth = getAuthClient();
+      const sheets = google.sheets({ version: "v4", auth });
+      const result = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!A:H` });
+      const rows = result.data.values || [];
+      const rowIndex = rows.findIndex(row => row[7] === id);
+      
+      if (rowIndex === -1) return json(res, 404, { ok: false, error: "Expense not found" });
+      
+      const loggedAt = rows[rowIndex][6];
+      const rowData = [date, Number(amount), currency, category, description || "", method, loggedAt, id];
+      
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A${rowIndex + 1}:H${rowIndex + 1}`,
+        valueInputOption: "RAW",
+        requestBody: { values: [rowData] }
+      });
+      return json(res, 200, { ok: true });
+    } catch (e) {
+      console.error("Update error:", e.message);
+      return json(res, 500, { ok: false, error: "Failed to update Google Sheet" });
     }
   }
 
