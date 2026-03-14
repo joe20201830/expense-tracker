@@ -209,6 +209,7 @@
     <div class="page-header">
       <h1>Analytics</h1>
       <p id="analytics-subtitle"></p>
+      <p id="rate-note" style="font-size:.75rem;color:var(--muted);margin-top:3px;"></p>
     </div>
 
     <div class="stat-card">
@@ -277,11 +278,22 @@ let analyticsLoaded = false;
 let historyLoaded = false;
 let editingId = null;
 let openSwipeItem = null;
+let usdToTwd = 32;
+let rateSource = "fallback";
+
+async function fetchRate() {
+  try {
+    const res = await fetch("https://api.frankfurter.app/latest?from=USD&to=TWD");
+    const data = await res.json();
+    usdToTwd = data.rates.TWD;
+    rateSource = "live";
+  } catch { /* keep fallback */ }
+}
 
 // ── Init ──────────────────────────────────────────────────────
 document.getElementById("date").value = today;
 document.getElementById("today-label").textContent = new Date().toLocaleDateString("en", { weekday:"long", month:"long", day:"numeric" });
-fetchAll().then(loadHeroSummary).catch(() => {});
+fetchRate().then(() => fetchAll().then(loadHeroSummary).catch(() => {}));
 
 // ── Fetch all (cached) ────────────────────────────────────────
 async function fetchAll() {
@@ -511,6 +523,8 @@ async function loadAnalytics() {
     renderAnalytics(expenses);
     analyticsLoaded = true;
     document.getElementById("analytics-subtitle").textContent = expenses.length + " expenses total";
+  document.getElementById("rate-note").textContent = `USD → TWD @ ${usdToTwd.toFixed(2)} (${rateSource === "live" ? "live rate" : "fallback rate"})`;
+
   } catch {
     document.getElementById("analytics-subtitle").textContent = "Could not load data";
   }
@@ -536,7 +550,7 @@ function renderAnalytics(expenses) {
   // Weekly bar chart
   const weekDays = getWeekDays();
   const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const weekTotals = weekDays.map(d => expenses.filter(e => e.date === d).reduce((s,e) => s + Number(e.amount), 0));
+  const weekTotals = weekDays.map(d => expenses.filter(e => e.date === d).reduce((s, e) => s + toTwd(e), 0));
   const weekLabels = weekDays.map(d => dayNames[new Date(d + "T12:00:00").getDay()]);
   if (weeklyChart) weeklyChart.destroy();
   weeklyChart = new Chart(document.getElementById("weeklyChart"), {
@@ -566,7 +580,7 @@ function renderAnalytics(expenses) {
 function renderCatBreakdown(expenses, key) {
   const filtered = expenses.filter(e => e.date.startsWith(key));
   const totals = {};
-  filtered.forEach(e => { totals[e.category] = (totals[e.category] || 0) + Number(e.amount); });
+  filtered.forEach(e => { totals[e.category] = (totals[e.category] || 0) + toTwd(e); });
   const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
   const container = document.getElementById("cat-breakdown");
   if (!sorted.length) { container.innerHTML = '<div class="empty" style="padding:8px 0">No data for this month.</div>'; return; }
@@ -582,7 +596,8 @@ function renderCatBreakdown(expenses, key) {
 
 // ── Helpers ───────────────────────────────────────────────────
 function monthKey(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
-function sumMonth(expenses, key) { return expenses.filter(e => e.date.startsWith(key)).reduce((s, e) => s + Number(e.amount), 0); }
+function toTwd(e) { return e.currency === "USD" ? Number(e.amount) * usdToTwd : Number(e.amount); }
+function sumMonth(expenses, key) { return expenses.filter(e => e.date.startsWith(key)).reduce((s, e) => s + toTwd(e), 0); }
 function getWeekDays() {
   const now = new Date(), day = now.getDay();
   const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
