@@ -117,6 +117,23 @@
     .cat-row-bar-wrap { width: 80px; height: 5px; background: var(--border); border-radius: 100px; overflow: hidden; }
     .cat-row-bar { height: 100%; border-radius: 100px; transition: width .4s; }
     .cat-row-amount { font-weight: 700; font-size: .88rem; min-width: 70px; text-align: right; }
+  /* ── Recurring modal ── */
+  .recurring-btn { height: 34px; padding: 0 14px; background: var(--card); border: 1.5px solid var(--border); border-radius: 10px; color: var(--muted); font-size: .78rem; font-weight: 500; cursor: pointer; transition: border-color .15s, color .15s; white-space: nowrap; }
+  .recurring-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; display: none; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--card); border-radius: 22px; padding: 24px 20px; width: 100%; max-width: 380px; box-shadow: 0 8px 40px rgba(0,0,0,.5); }
+  .modal h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+  .modal .modal-desc { font-size: .78rem; color: var(--muted); margin-bottom: 18px; }
+  .recurring-item { display: flex; align-items: center; gap: 13px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .recurring-item:last-child { border-bottom: none; }
+  .recurring-icon { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; background: rgba(124,111,247,.12); flex-shrink: 0; }
+  .recurring-info { flex: 1; }
+  .recurring-info .rec-name { font-weight: 600; font-size: .9rem; }
+  .recurring-info .rec-freq { font-size: .74rem; color: var(--muted); margin-top: 2px; }
+  .recurring-info .rec-detail { font-size: .72rem; color: var(--muted); margin-top: 1px; }
+  .recurring-amount { font-weight: 700; font-size: .9rem; flex-shrink: 0; }
+  .modal-close { width: 100%; height: 44px; background: none; border: 1.5px solid var(--border); border-radius: 14px; color: var(--muted); font-size: .9rem; font-weight: 500; cursor: pointer; margin-top: 16px; }
   </style>
 </head>
 <body>
@@ -181,9 +198,12 @@
 
   <!-- ══ HISTORY TAB ══ -->
   <div id="tab-history" class="tab-content">
-    <div class="page-header">
-      <h1>History</h1>
-      <p id="history-subtitle"></p>
+    <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;">
+      <div>
+        <h1>History</h1>
+        <p id="history-subtitle"></p>
+      </div>
+      <button class="recurring-btn" onclick="document.getElementById('recurring-modal').classList.add('open')">Recurring</button>
     </div>
     <div class="filters">
       <select id="filter-cat">
@@ -219,12 +239,12 @@
     </div>
 
     <div class="chart-card">
-      <div class="chart-title">This Week</div>
+      <div class="chart-title">Last 7 Days</div>
       <canvas id="weeklyChart" height="150"></canvas>
     </div>
 
     <div class="chart-card">
-      <div class="chart-title">Monthly Trend (last 6 months)</div>
+      <div class="chart-title">Weekly Trend (last 6 weeks)</div>
       <canvas id="monthlyChart" height="150"></canvas>
     </div>
 
@@ -262,6 +282,51 @@
       Analytics
     </button>
   </nav>
+
+  <!-- ══ RECURRING MODAL ══ -->
+  <div class="modal-overlay" id="recurring-modal" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="modal">
+      <h2>Recurring Spending</h2>
+      <p class="modal-desc">Monthly subscriptions</p>
+      <div class="recurring-item">
+        <div class="recurring-icon">🌍</div>
+        <div class="recurring-info">
+          <div class="rec-name">GeoGuessr</div>
+          <div class="rec-freq">Every 23rd</div>
+          <div class="rec-detail">國泰 Cube</div>
+        </div>
+        <div class="recurring-amount">TWD 179</div>
+      </div>
+      <div class="recurring-item">
+        <div class="recurring-icon">🤖</div>
+        <div class="recurring-info">
+          <div class="rec-name">Claude Pro</div>
+          <div class="rec-freq">Every 4th</div>
+          <div class="rec-detail">EtherFi (7416)</div>
+        </div>
+        <div class="recurring-amount">USD 20</div>
+      </div>
+      <div class="recurring-item">
+        <div class="recurring-icon">🎬</div>
+        <div class="recurring-info">
+          <div class="rec-name">Netflix</div>
+          <div class="rec-freq">Every 29th</div>
+          <div class="rec-detail">7165</div>
+        </div>
+        <div class="recurring-amount">TWD 460</div>
+      </div>
+      <div class="recurring-item">
+        <div class="recurring-icon">▶️</div>
+        <div class="recurring-info">
+          <div class="rec-name">YouTube Premium</div>
+          <div class="rec-freq">Every 11th</div>
+          <div class="rec-detail">中信 (0148)</div>
+        </div>
+        <div class="recurring-amount">TWD 479</div>
+      </div>
+      <button class="modal-close" onclick="document.getElementById('recurring-modal').classList.remove('open')">Close</button>
+    </div>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -444,7 +509,10 @@ function renderHistory(expenses) {
   let list = [...expenses];
   if (cat) list = list.filter(e => e.category === cat);
   if (method) list = list.filter(e => e.method === method);
-  document.getElementById("history-subtitle").textContent = list.length + " transaction" + (list.length !== 1 ? "s" : "");
+  list.sort((a, b) => b.date.localeCompare(a.date));
+  const total = list.length;
+  list = list.slice(0, 10);
+  document.getElementById("history-subtitle").textContent = total > 10 ? "Showing 10 of " + total + " transactions" : total + " transaction" + (total !== 1 ? "s" : "");
   const el = document.getElementById("history-list");
   if (!list.length) { el.innerHTML = '<div class="empty">No expenses found.</div>'; return; }
   el.innerHTML = list.map(e => `
@@ -547,25 +615,24 @@ function renderAnalytics(expenses) {
     badge.className = "stat-badge " + (pct >= 0 ? "badge-up" : "badge-down");
   }
 
-  // Weekly bar chart
-  const weekDays = getWeekDays();
-  const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const weekTotals = weekDays.map(d => expenses.filter(e => e.date === d).reduce((s, e) => s + toTwd(e), 0));
-  const weekLabels = weekDays.map(d => dayNames[new Date(d + "T12:00:00").getDay()]);
+  // Last 7 days bar chart
+  const last7 = Array.from({length:7}, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d.toLocaleDateString("en-CA"); });
+  const last7Totals = last7.map(d => expenses.filter(e => e.date === d).reduce((s, e) => s + toTwd(e), 0));
+  const last7Labels = last7.map(d => { const dt = new Date(d + "T12:00:00"); return dt.getDate() + "/" + (dt.getMonth()+1); });
   if (weeklyChart) weeklyChart.destroy();
   weeklyChart = new Chart(document.getElementById("weeklyChart"), {
     type: "bar",
-    data: { labels: weekLabels, datasets: [{ data: weekTotals, backgroundColor: weekDays.map(d => d === today ? "#7C6FF7" : "#2D2B6B"), borderRadius: 8, borderSkipped: false }] },
+    data: { labels: last7Labels, datasets: [{ data: last7Totals, backgroundColor: last7.map(d => d === today ? "#7C6FF7" : "#2D2B6B"), borderRadius: 8, borderSkipped: false }] },
     options: { plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{display:false}, border:{display:false}, ticks:{color:"#7070A0"} }, y:{ grid:{color:"#26264A"}, border:{display:false}, ticks:{maxTicksLimit:4, color:"#7070A0"} } }, responsive:true, maintainAspectRatio:true }
   });
 
-  // Monthly line chart (last 6 months)
-  const months = last6Months(now);
-  months.forEach(m => { m.total = sumMonth(expenses, m.key); });
+  // Weekly trend line chart (last 6 weeks)
+  const weeks = last6Weeks(now);
+  weeks.forEach(w => { w.total = expenses.filter(e => e.date >= w.start && e.date <= w.end).reduce((s, e) => s + toTwd(e), 0); });
   if (monthlyChart) monthlyChart.destroy();
   monthlyChart = new Chart(document.getElementById("monthlyChart"), {
     type: "line",
-    data: { labels: months.map(m => m.label), datasets: [{ data: months.map(m => m.total), borderColor:"#7C6FF7", backgroundColor:"rgba(124,111,247,.12)", borderWidth:2.5, fill:true, tension:0.4, pointBackgroundColor:"#7C6FF7", pointRadius:4 }] },
+    data: { labels: weeks.map(w => w.label), datasets: [{ data: weeks.map(w => w.total), borderColor:"#7C6FF7", backgroundColor:"rgba(124,111,247,.12)", borderWidth:2.5, fill:true, tension:0.4, pointBackgroundColor:"#7C6FF7", pointRadius:4 }] },
     options: { plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{display:false}, border:{display:false}, ticks:{color:"#7070A0"} }, y:{ grid:{color:"#26264A"}, border:{display:false}, ticks:{maxTicksLimit:4, color:"#7070A0"} } }, responsive:true, maintainAspectRatio:true }
   });
 
@@ -607,6 +674,15 @@ function last6Months(now) {
   return Array.from({length:6}, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
     return { key: monthKey(d), label: d.toLocaleString("en", { month:"short" }), total: 0 };
+  });
+}
+function last6Weeks(now) {
+  return Array.from({length:6}, (_, i) => {
+    const end = new Date(now); end.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1)); end.setDate(end.getDate() - 7 * (5 - i) + 6);
+    const start = new Date(end); start.setDate(end.getDate() - 6);
+    const fmt = d => d.toLocaleDateString("en-CA");
+    const lbl = (start.getDate()) + "/" + (start.getMonth()+1) + "–" + end.getDate() + "/" + (end.getMonth()+1);
+    return { start: fmt(start), end: fmt(end), label: lbl, total: 0 };
   });
 }
 
