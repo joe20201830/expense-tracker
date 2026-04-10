@@ -134,6 +134,26 @@
   .recurring-info .rec-detail { font-size: .72rem; color: var(--muted); margin-top: 1px; }
   .recurring-amount { font-weight: 700; font-size: .9rem; flex-shrink: 0; }
   .modal-close { width: 100%; height: 44px; background: none; border: 1.5px solid var(--border); border-radius: 14px; color: var(--muted); font-size: .9rem; font-weight: 500; cursor: pointer; margin-top: 16px; }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .modal-header h2 { margin-bottom: 0; }
+  .rec-add-btn { height: 30px; padding: 0 12px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: .78rem; font-weight: 600; cursor: pointer; transition: background .15s; flex-shrink: 0; }
+  .rec-add-btn:active { background: var(--primary-dark); }
+  .rec-icon-btn { width: 30px; height: 30px; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity .15s; }
+  .rec-icon-btn:active { opacity: .7; }
+  .rec-edit-btn { background: rgba(124,111,247,.15); }
+  .rec-delete-btn { background: rgba(255,107,138,.15); }
+  .rec-item-actions { display: flex; gap: 6px; align-items: center; margin-left: 8px; }
+  #recurring-form { background: var(--card2); border-radius: 14px; padding: 16px; margin-bottom: 4px; border: 1.5px solid var(--border); }
+  #recurring-form .field { margin-bottom: 12px; }
+  #recurring-form .field:last-of-type { margin-bottom: 0; }
+  #recurring-form input, #recurring-form select { height: 44px; font-size: .9rem; }
+  .rec-form-row { display: flex; gap: 8px; }
+  .rec-form-row input { flex: 1; }
+  .rec-form-row select { flex: 1; }
+  .rec-form-btns { display: flex; gap: 8px; margin-top: 14px; }
+  .rec-save-btn { flex: 1; height: 44px; background: var(--primary); color: #fff; border: none; border-radius: 12px; font-size: .9rem; font-weight: 600; cursor: pointer; transition: background .15s; }
+  .rec-save-btn:active { background: var(--primary-dark); }
+  .rec-cancel-btn { flex: 1; height: 44px; background: none; color: var(--muted); border: 1.5px solid var(--border); border-radius: 12px; font-size: .9rem; font-weight: 500; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -203,7 +223,7 @@
         <h1>History</h1>
         <p id="history-subtitle"></p>
       </div>
-      <button class="recurring-btn" onclick="document.getElementById('recurring-modal').classList.add('open')">Recurring</button>
+      <button class="recurring-btn">Recurring</button>
     </div>
     <div class="filters">
       <select id="filter-cat">
@@ -284,47 +304,44 @@
   </nav>
 
   <!-- ══ RECURRING MODAL ══ -->
-  <div class="modal-overlay" id="recurring-modal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal-overlay" id="recurring-modal" onclick="if(event.target===this)closeRecurringModal()">
     <div class="modal">
-      <h2>Recurring Spending</h2>
+      <div class="modal-header">
+        <h2>Recurring Spending</h2>
+        <button class="rec-add-btn" onclick="openRecurringForm()">+ Add</button>
+      </div>
       <p class="modal-desc">Monthly subscriptions</p>
-      <div class="recurring-item">
-        <div class="recurring-icon">🌍</div>
-        <div class="recurring-info">
-          <div class="rec-name">GeoGuessr</div>
-          <div class="rec-freq">Every 23rd</div>
-          <div class="rec-detail">國泰 Cube</div>
+      <div id="recurring-form" style="display:none">
+        <div class="field">
+          <label>Name</label>
+          <input type="text" id="rec-name" placeholder="e.g. Spotify" maxlength="40" />
         </div>
-        <div class="recurring-amount">TWD 179</div>
-      </div>
-      <div class="recurring-item">
-        <div class="recurring-icon">🤖</div>
-        <div class="recurring-info">
-          <div class="rec-name">Claude Pro</div>
-          <div class="rec-freq">Every 4th</div>
-          <div class="rec-detail">EtherFi (7416)</div>
+        <div class="field">
+          <label>Day of month &amp; Amount</label>
+          <div class="rec-form-row">
+            <input type="number" id="rec-day" placeholder="Day (1–31)" min="1" max="31" />
+            <input type="number" id="rec-amount" placeholder="Amount" min="0.01" step="0.01" />
+            <select id="rec-currency">
+              <option value="TWD">TWD</option>
+              <option value="USD">USD</option>
+            </select>
+          </div>
         </div>
-        <div class="recurring-amount">USD 20</div>
-      </div>
-      <div class="recurring-item">
-        <div class="recurring-icon">🎬</div>
-        <div class="recurring-info">
-          <div class="rec-name">Netflix</div>
-          <div class="rec-freq">Every 29th</div>
-          <div class="rec-detail">7165</div>
+        <div class="field">
+          <label>Category</label>
+          <select id="rec-category">
+            <option>Food</option><option>Transport</option><option>Shopping</option>
+            <option>Health</option><option>Entertainment</option><option>Bills</option>
+            <option>Travel</option><option>Other</option>
+          </select>
         </div>
-        <div class="recurring-amount">TWD 460</div>
-      </div>
-      <div class="recurring-item">
-        <div class="recurring-icon">▶️</div>
-        <div class="recurring-info">
-          <div class="rec-name">YouTube Premium</div>
-          <div class="rec-freq">Every 11th</div>
-          <div class="rec-detail">中信 (0148)</div>
+        <div class="rec-form-btns">
+          <button class="rec-cancel-btn" onclick="closeRecurringForm()">Cancel</button>
+          <button class="rec-save-btn" onclick="saveRecurringItem()">Save</button>
         </div>
-        <div class="recurring-amount">TWD 479</div>
       </div>
-      <button class="modal-close" onclick="document.getElementById('recurring-modal').classList.remove('open')">Close</button>
+      <div id="recurring-list"></div>
+      <button class="modal-close" onclick="closeRecurringModal()">Close</button>
     </div>
   </div>
 </div>
@@ -334,6 +351,7 @@
 <script>
 const ICONS = { Food:"🍜", Transport:"🚌", Shopping:"🛍️", Health:"💊", Entertainment:"🎬", Bills:"📋", Travel:"✈️", Other:"📦" };
 const CAT_COLORS = { Food:"#FF6B6B", Transport:"#4ECDC4", Shopping:"#FFD93D", Health:"#6BCB77", Entertainment:"#FF8B94", Bills:"#A78BFA", Travel:"#60A5FA", Other:"#D4A5A5" };
+const API_TOKEN_STORAGE_KEY = "expense-tracker-api-token";
 
 const today = new Date().toLocaleDateString("en-CA");
 let allExpenses = null;
@@ -343,8 +361,10 @@ let analyticsLoaded = false;
 let historyLoaded = false;
 let editingId = null;
 let openSwipeItem = null;
+let historyLimit = 10;
 let usdToTwd = 32;
 let rateSource = "fallback";
+let apiToken = sessionStorage.getItem(API_TOKEN_STORAGE_KEY) || "";
 
 async function fetchRate() {
   try {
@@ -360,11 +380,64 @@ document.getElementById("date").value = today;
 document.getElementById("today-label").textContent = new Date().toLocaleDateString("en", { weekday:"long", month:"long", day:"numeric" });
 fetchRate().then(() => fetchAll().then(loadHeroSummary).catch(() => {}));
 
+function clearApiToken() {
+  apiToken = "";
+  sessionStorage.removeItem(API_TOKEN_STORAGE_KEY);
+}
+
+async function ensureApiToken(forcePrompt = false) {
+  if (apiToken && !forcePrompt) return apiToken;
+  if (!forcePrompt) return "";
+
+  const value = window.prompt("Enter your Expense Tracker access token");
+  if (value == null || !value.trim()) {
+    throw new Error("AUTH_CANCELLED");
+  }
+
+  apiToken = value.trim();
+  sessionStorage.setItem(API_TOKEN_STORAGE_KEY, apiToken);
+  return apiToken;
+}
+
+async function readJsonResponse(res) {
+  try {
+    return await res.json();
+  } catch {
+    return { ok: false, error: "Unexpected server response" };
+  }
+}
+
+async function apiRequest(url, options = {}, allowRetry = true) {
+  const headers = new Headers(options.headers || {});
+  if (options.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const token = await ensureApiToken(false);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401 && allowRetry) {
+    clearApiToken();
+    const refreshedToken = await ensureApiToken(true);
+    const retryHeaders = new Headers(options.headers || {});
+    if (options.body && !retryHeaders.has("Content-Type")) {
+      retryHeaders.set("Content-Type", "application/json");
+    }
+    retryHeaders.set("Authorization", `Bearer ${refreshedToken}`);
+    return fetch(url, { ...options, headers: retryHeaders });
+  }
+
+  return res;
+}
+
 // ── Fetch all (cached) ────────────────────────────────────────
 async function fetchAll() {
   if (allExpenses) return allExpenses;
-  const res = await fetch("/expenses/all");
-  const data = await res.json();
+  const res = await apiRequest("/expenses/all");
+  const data = await readJsonResponse(res);
   if (!data.ok) throw new Error(data.error);
   allExpenses = data.expenses;
   return allExpenses;
@@ -428,8 +501,8 @@ document.getElementById("form").addEventListener("submit", async (e) => {
   try {
     const url = editingId ? `/expense/${editingId}` : "/expense";
     const method = editingId ? "PUT" : "POST";
-    const res = await fetch(url, { method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
-    const data = await res.json();
+    const res = await apiRequest(url, { method, body: JSON.stringify(payload) });
+    const data = await readJsonResponse(res);
     if (data.ok) {
       showToast(editingId ? "Updated ✓" : "Saved ✓");
       if (editingId) {
@@ -443,7 +516,9 @@ document.getElementById("form").addEventListener("submit", async (e) => {
     } else {
       showToast(data.error || "Error — try again", true);
     }
-  } catch { showToast("Network error", true); }
+  } catch (error) {
+    showToast(error.message === "AUTH_CANCELLED" ? "Access token required" : "Network error", true);
+  }
   finally { btn.disabled = false; btn.textContent = editingId ? "Update Expense" : "+ Add Expense"; }
 });
 
@@ -475,8 +550,8 @@ function cancelEdit() {
 async function deleteExpense(id, wrapper) {
   if (!confirm("Delete this expense?")) return;
   try {
-    const res = await fetch(`/expense/${id}`, { method: "DELETE" });
-    const data = await res.json();
+    const res = await apiRequest(`/expense/${id}`, { method: "DELETE" });
+    const data = await readJsonResponse(res);
     if (data.ok) {
       showToast("Deleted");
       wrapper.remove();
@@ -487,7 +562,9 @@ async function deleteExpense(id, wrapper) {
     } else {
       showToast(data.error || "Delete failed", true);
     }
-  } catch { showToast("Network error", true); }
+  } catch (error) {
+    showToast(error.message === "AUTH_CANCELLED" ? "Access token required" : "Network error", true);
+  }
 }
 
 // ── History ───────────────────────────────────────────────────
@@ -495,9 +572,10 @@ async function loadHistory() {
   try {
     const expenses = await fetchAll();
     historyLoaded = true;
+    historyLimit = 10;
     renderHistory(expenses);
-    document.getElementById("filter-cat").onchange = () => renderHistory(expenses);
-    document.getElementById("filter-method").onchange = () => renderHistory(expenses);
+    document.getElementById("filter-cat").onchange = () => { historyLimit = 10; renderHistory(expenses); };
+    document.getElementById("filter-method").onchange = () => { historyLimit = 10; renderHistory(expenses); };
   } catch {
     document.getElementById("history-list").innerHTML = '<div class="empty">Could not load expenses.</div>';
   }
@@ -511,31 +589,72 @@ function renderHistory(expenses) {
   if (method) list = list.filter(e => e.method === method);
   list.sort((a, b) => b.date.localeCompare(a.date));
   const total = list.length;
-  list = list.slice(0, 10);
-  document.getElementById("history-subtitle").textContent = total > 10 ? "Showing 10 of " + total + " transactions" : total + " transaction" + (total !== 1 ? "s" : "");
+  const showing = Math.min(historyLimit, total);
+  list = list.slice(0, historyLimit);
+  document.getElementById("history-subtitle").textContent = showing < total ? "Showing " + showing + " of " + total + " transactions" : total + " transaction" + (total !== 1 ? "s" : "");
   const el = document.getElementById("history-list");
   if (!list.length) { el.innerHTML = '<div class="empty">No expenses found.</div>'; return; }
-  el.innerHTML = list.map(e => `
-    <div class="swipe-wrapper">
-      <div class="swipe-actions">
-        <button class="action-btn action-edit" aria-label="Edit">✏️</button>
-        <button class="action-btn action-delete" aria-label="Delete">🗑️</button>
-      </div>
-      <div class="expense-item">
-        <div class="cat-icon" style="background:${CAT_COLORS[e.category] || "#eee"}22">${ICONS[e.category] || "📦"}</div>
-        <div class="expense-info">
-          <div class="cat-name">${e.category}${e.description ? " · " + e.description : ""}</div>
-          <div class="meta">${e.date} · ${e.method}</div>
-        </div>
-        <div class="expense-amount">${e.currency} ${Number(e.amount).toLocaleString()}</div>
-      </div>
-    </div>`).join("");
-  el.querySelectorAll(".swipe-wrapper").forEach((wrapper, i) => {
-    const expense = list[i];
+  el.replaceChildren();
+  list.forEach((expense) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "swipe-wrapper";
+
+    const actions = document.createElement("div");
+    actions.className = "swipe-actions";
+
+    const editBtn = document.createElement("button");
+    editBtn.className = "action-btn action-edit";
+    editBtn.setAttribute("aria-label", "Edit");
+    editBtn.textContent = "✏️";
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "action-btn action-delete";
+    deleteBtn.setAttribute("aria-label", "Delete");
+    deleteBtn.textContent = "🗑️";
+
+    actions.append(editBtn, deleteBtn);
+
+    const item = document.createElement("div");
+    item.className = "expense-item";
+
+    const icon = document.createElement("div");
+    icon.className = "cat-icon";
+    icon.style.background = `${CAT_COLORS[expense.category] || "#eee"}22`;
+    icon.textContent = ICONS[expense.category] || "📦";
+
+    const info = document.createElement("div");
+    info.className = "expense-info";
+
+    const name = document.createElement("div");
+    name.className = "cat-name";
+    name.textContent = expense.category + (expense.description ? " · " + expense.description : "");
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = `${expense.date} · ${expense.method}`;
+
+    const amount = document.createElement("div");
+    amount.className = "expense-amount";
+    amount.textContent = `${expense.currency} ${Number(expense.amount).toLocaleString()}`;
+
+    info.append(name, meta);
+    item.append(icon, info, amount);
+    wrapper.append(actions, item);
+    el.append(wrapper);
+
     attachSwipe(wrapper);
-    wrapper.querySelector(".action-edit").onclick = () => startEdit(expense);
-    wrapper.querySelector(".action-delete").onclick = () => deleteExpense(expense.id, wrapper);
+    editBtn.onclick = () => startEdit(expense);
+    deleteBtn.onclick = () => deleteExpense(expense.id, wrapper);
   });
+
+  if (historyLimit < total) {
+    const showMoreBtn = document.createElement("button");
+    showMoreBtn.className = "submit-btn";
+    showMoreBtn.style.cssText = "margin-top:4px;background:none;border:1.5px solid var(--border);color:var(--muted);font-size:.88rem;height:44px;";
+    showMoreBtn.textContent = "Show more ↓";
+    showMoreBtn.onclick = () => { historyLimit += 20; renderHistory(allExpenses); };
+    el.append(showMoreBtn);
+  }
 }
 
 function attachSwipe(wrapper) {
@@ -638,7 +757,12 @@ function renderAnalytics(expenses) {
 
   // Category month picker
   const sel = document.getElementById("cat-month-select");
-  sel.innerHTML = months.slice().reverse().map(m => `<option value="${m.key}">${m.label}</option>`).join("");
+  const months = last6Months(now);
+  sel.innerHTML = months.slice().reverse().map(m => {
+    const [yr, mo] = m.key.split("-");
+    const label = new Date(+yr, +mo - 1, 1).toLocaleString("en", { month: "short", year: "numeric" });
+    return `<option value="${m.key}">${label}</option>`;
+  }).join("");
   sel.value = thisKey;
   sel.onchange = () => renderCatBreakdown(expenses, sel.value);
   renderCatBreakdown(expenses, thisKey);
@@ -652,13 +776,35 @@ function renderCatBreakdown(expenses, key) {
   const container = document.getElementById("cat-breakdown");
   if (!sorted.length) { container.innerHTML = '<div class="empty" style="padding:8px 0">No data for this month.</div>'; return; }
   const max = sorted[0][1];
-  container.innerHTML = sorted.map(([cat, total]) => `
-    <div class="cat-row">
-      <div class="cat-dot" style="background:${CAT_COLORS[cat] || "#ccc"}"></div>
-      <div class="cat-row-name">${cat}</div>
-      <div class="cat-row-bar-wrap"><div class="cat-row-bar" style="width:${(total/max*100).toFixed(1)}%;background:${CAT_COLORS[cat] || "#ccc"}"></div></div>
-      <div class="cat-row-amount">TWD ${total.toLocaleString()}</div>
-    </div>`).join("");
+  container.replaceChildren();
+  sorted.forEach(([cat, total]) => {
+    const row = document.createElement("div");
+    row.className = "cat-row";
+
+    const dot = document.createElement("div");
+    dot.className = "cat-dot";
+    dot.style.background = CAT_COLORS[cat] || "#ccc";
+
+    const name = document.createElement("div");
+    name.className = "cat-row-name";
+    name.textContent = cat;
+
+    const barWrap = document.createElement("div");
+    barWrap.className = "cat-row-bar-wrap";
+
+    const bar = document.createElement("div");
+    bar.className = "cat-row-bar";
+    bar.style.width = `${(total / max * 100).toFixed(1)}%`;
+    bar.style.background = CAT_COLORS[cat] || "#ccc";
+    barWrap.append(bar);
+
+    const amount = document.createElement("div");
+    amount.className = "cat-row-amount";
+    amount.textContent = `TWD ${total.toLocaleString()}`;
+
+    row.append(dot, name, barWrap, amount);
+    container.append(row);
+  });
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -692,6 +838,139 @@ document.addEventListener("touchstart", (e) => {
     closeSwipeItem(openSwipeItem);
   }
 }, { passive: true });
+
+// ── Recurring ─────────────────────────────────────────────────
+const RECURRING_KEY = "recurringItems";
+const RECURRING_DEFAULTS = [
+  { id: "default-1", name: "GeoGuessr",       day: 23, amount: 179, currency: "TWD", category: "Entertainment" },
+  { id: "default-2", name: "Claude Pro",       day: 4,  amount: 20,  currency: "USD", category: "Bills" },
+  { id: "default-3", name: "Netflix",          day: 29, amount: 460, currency: "TWD", category: "Entertainment" },
+  { id: "default-4", name: "YouTube Premium",  day: 11, amount: 479, currency: "TWD", category: "Entertainment" },
+];
+let editingRecurringId = null;
+
+function loadRecurringItems() {
+  const raw = localStorage.getItem(RECURRING_KEY);
+  if (raw) {
+    try { return JSON.parse(raw); } catch { /* fall through */ }
+  }
+  localStorage.setItem(RECURRING_KEY, JSON.stringify(RECURRING_DEFAULTS));
+  return RECURRING_DEFAULTS.slice();
+}
+
+function saveRecurringItems(items) {
+  localStorage.setItem(RECURRING_KEY, JSON.stringify(items));
+}
+
+function ordinal(n) {
+  const s = ["th","st","nd","rd"], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+function renderRecurringList() {
+  const items = loadRecurringItems();
+  const el = document.getElementById("recurring-list");
+  if (!items.length) {
+    el.innerHTML = '<div class="empty" style="padding:24px 0">No recurring items yet.</div>';
+    return;
+  }
+  el.replaceChildren();
+  items.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "recurring-item";
+
+    const icon = document.createElement("div");
+    icon.className = "recurring-icon";
+    icon.textContent = ICONS[item.category] || "📋";
+
+    const info = document.createElement("div");
+    info.className = "recurring-info";
+    info.innerHTML = `<div class="rec-name">${item.name}</div><div class="rec-freq">Every ${ordinal(item.day)}</div><div class="rec-detail">${item.category}</div>`;
+
+    const amount = document.createElement("div");
+    amount.className = "recurring-amount";
+    amount.textContent = `${item.currency} ${Number(item.amount).toLocaleString()}`;
+
+    const actions = document.createElement("div");
+    actions.className = "rec-item-actions";
+
+    const editBtn = document.createElement("button");
+    editBtn.className = "rec-icon-btn rec-edit-btn";
+    editBtn.setAttribute("aria-label", "Edit");
+    editBtn.textContent = "✏️";
+    editBtn.onclick = () => openRecurringForm(item);
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "rec-icon-btn rec-delete-btn";
+    delBtn.setAttribute("aria-label", "Delete");
+    delBtn.textContent = "🗑️";
+    delBtn.onclick = () => deleteRecurringItem(item.id);
+
+    actions.append(editBtn, delBtn);
+    div.append(icon, info, amount, actions);
+    el.append(div);
+  });
+}
+
+function openRecurringForm(item = null) {
+  editingRecurringId = item ? item.id : null;
+  const form = document.getElementById("recurring-form");
+  document.getElementById("rec-name").value = item ? item.name : "";
+  document.getElementById("rec-day").value = item ? item.day : "";
+  document.getElementById("rec-amount").value = item ? item.amount : "";
+  document.getElementById("rec-currency").value = item ? item.currency : "TWD";
+  document.getElementById("rec-category").value = item ? item.category : "Entertainment";
+  form.style.display = "block";
+  document.getElementById("rec-name").focus();
+}
+
+function closeRecurringForm() {
+  document.getElementById("recurring-form").style.display = "none";
+  editingRecurringId = null;
+}
+
+function saveRecurringItem() {
+  const name = document.getElementById("rec-name").value.trim();
+  const day = parseInt(document.getElementById("rec-day").value, 10);
+  const amount = parseFloat(document.getElementById("rec-amount").value);
+  const currency = document.getElementById("rec-currency").value;
+  const category = document.getElementById("rec-category").value;
+
+  if (!name) { showToast("Name is required", true); return; }
+  if (!day || day < 1 || day > 31) { showToast("Enter a day between 1–31", true); return; }
+  if (!amount || amount <= 0) { showToast("Enter a valid amount", true); return; }
+
+  const items = loadRecurringItems();
+  if (editingRecurringId) {
+    const idx = items.findIndex(i => i.id === editingRecurringId);
+    if (idx !== -1) items[idx] = { ...items[idx], name, day, amount, currency, category };
+  } else {
+    items.push({ id: crypto.randomUUID(), name, day, amount, currency, category });
+  }
+  saveRecurringItems(items);
+  closeRecurringForm();
+  renderRecurringList();
+  showToast(editingRecurringId ? "Updated ✓" : "Added ✓");
+}
+
+function deleteRecurringItem(id) {
+  if (!confirm("Delete this recurring item?")) return;
+  const items = loadRecurringItems().filter(i => i.id !== id);
+  saveRecurringItems(items);
+  renderRecurringList();
+  showToast("Deleted");
+}
+
+function closeRecurringModal() {
+  document.getElementById("recurring-modal").classList.remove("open");
+  closeRecurringForm();
+}
+
+// Render list when modal opens
+document.querySelector(".recurring-btn").addEventListener("click", () => {
+  renderRecurringList();
+  document.getElementById("recurring-modal").classList.add("open");
+});
 
 // ── PWA ───────────────────────────────────────────────────────
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});

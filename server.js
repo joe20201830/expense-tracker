@@ -8,29 +8,43 @@ const { randomUUID } = require("crypto");
 const PORT = process.env.PORT || 3003;
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const DEFAULT_CURRENCY = process.env.DEFAULT_CURRENCY || "TWD";
+const API_TOKEN = (process.env.API_TOKEN || "").trim();
 const SHEET_NAME = "Sheet1";
 
 const VALID_CURRENCIES = ["TWD", "USD"];
 const VALID_CATEGORIES = ["Food", "Transport", "Shopping", "Health", "Entertainment", "Bills", "Travel", "Other"];
 const VALID_METHODS = ["Cash", "Credit Card (國泰)", "EtherFi"];
 
-function getAuthClient() {
-  // Production: credentials passed as JSON string in env var
-  if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
-    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
-    return auth;
+function parseServiceAccountCredentials(rawValue) {
+  try {
+    return JSON.parse(rawValue);
+  } catch (_) {
+    try {
+      const decoded = Buffer.from(rawValue, "base64").toString("utf8");
+      return JSON.parse(decoded);
+    } catch {
+      throw new Error("Invalid GOOGLE_SERVICE_ACCOUNT_KEY");
+    }
   }
-  // Local: credentials read from file
-  const keyPath = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH || "./credentials.json";
-  const auth = new google.auth.GoogleAuth({
-    keyFile: path.resolve(__dirname, keyPath),
+}
+
+function getAuthClient() {
+  let credentials;
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    credentials = parseServiceAccountCredentials(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+  } else {
+    const keyPath = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH || "./credentials.json";
+    try {
+      credentials = JSON.parse(fs.readFileSync(path.resolve(__dirname, keyPath), "utf8"));
+    } catch {
+      throw new Error("Invalid Google service account file");
+    }
+  }
+  return new google.auth.JWT({
+    email: credentials.client_email,
+    key: credentials.private_key,
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
-  return auth;
 }
 
 function parseBody(req) {
@@ -51,10 +65,70 @@ function json(res, status, body) {
   res.end(payload);
 }
 
+function getBearerToken(req) {
+  const authHeader = req.headers.authorization || "";
+  if (!authHeader.startsWith("Bearer ")) return "";
+  return authHeader.slice("Bearer ".length).trim();
+}
+
+function requireApiToken(req, res) {
+  if (!API_TOKEN) return true;
+  if (getBearerToken(req) === API_TOKEN) return true;
+  json(res, 401, { ok: false, error: "Unauthorized" });
+  return false;
+}
+
+function validateExpensePayload(payload) {
+  const { date, amount, currency, category, description, method } = payload || {};
+  if (!date || isNaN(Date.parse(date))) {
+    return { error: "Valid date is required" };
+  }
+  if (amount == null || isNaN(Number(amount)) || Number(amount) <= 0) {
+    return { error: "Amount must be a positive number" };
+  }
+  if (!VALID_CATEGORIES.includes(category)) {
+    return { error: "Invalid category" };
+  }
+  if (!VALID_METHODS.includes(method)) {
+    return { error: "Invalid payment method" };
+  }
+  if (description != null && typeof description !== "string") {
+    return { error: "Description must be text" };
+  }
+
+  const normalizedDescription = (description || "").trim();
+  if (normalizedDescription.length > 200) {
+    return { error: "Description max 200 characters" };
+  }
+
+  return {
+    expense: {
+      date,
+      amount: Number(amount),
+      currency: VALID_CURRENCIES.includes(currency) ? currency : DEFAULT_CURRENCY,
+      category,
+      description: normalizedDescription,
+      method,
+    },
+  };
+}
+
+async function getSheetId(sheets) {
+  const result = await sheets.spreadsheets.get({
+    spreadsheetId: SPREADSHEET_ID,
+    fields: "sheets.properties(sheetId,title)",
+  });
+  const sheet = result.data.sheets?.find((entry) => entry.properties?.title === SHEET_NAME);
+  if (!sheet || sheet.properties?.sheetId == null) {
+    throw new Error(`Sheet "${SHEET_NAME}" not found`);
+  }
+  return sheet.properties.sheetId;
+}
+
 async function ensureHeader(sheets) {
   const result = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A1:G1`,
+    range: `${SHEET_NAME}!A1:H1`,
   });
   const row = result.data.values?.[0];
   if (!row || row[0] !== "Date") {
@@ -107,9 +181,7 @@ async function fetchExpenses() {
   }));
 }
 
-const server = http.createServer(async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-
+async function handler(req, res) {
   if (req.method === "GET" && (req.url === "/" || req.url === "/index.html")) {
     const file = fs.readFileSync(path.join(__dirname, "index.html"));
     res.writeHead(200, { "Content-Type": "text/html" });
@@ -127,16 +199,18 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && req.url === "/expenses/all") {
+    if (!requireApiToken(req, res)) return;
     try {
       const expenses = await fetchExpenses();
       return json(res, 200, { ok: true, expenses });
     } catch (e) {
       console.error("Fetch error:", e.message);
-      return json(res, 500, { ok: false, error: e.message });
+      return json(res, 500, { ok: false, error: "Failed to fetch expenses" });
     }
   }
 
   if (req.method === "POST" && req.url === "/expense") {
+    if (!requireApiToken(req, res)) return;
     let body;
     try {
       body = await parseBody(req);
@@ -144,27 +218,8 @@ const server = http.createServer(async (req, res) => {
       return json(res, 400, { ok: false, error: "Invalid JSON body" });
     }
 
-    const { date, amount, currency, category, description, method } = body;
-
-    if (!date || isNaN(Date.parse(date)))
-      return json(res, 400, { ok: false, error: "Valid date is required" });
-    if (amount == null || isNaN(Number(amount)) || Number(amount) <= 0)
-      return json(res, 400, { ok: false, error: "Amount must be a positive number" });
-    if (!VALID_CATEGORIES.includes(category))
-      return json(res, 400, { ok: false, error: "Invalid category" });
-    if (!VALID_METHODS.includes(method))
-      return json(res, 400, { ok: false, error: "Invalid payment method" });
-    if (description && description.length > 200)
-      return json(res, 400, { ok: false, error: "Description max 200 characters" });
-
-    const expense = {
-      date,
-      amount: Number(amount),
-      currency: VALID_CURRENCIES.includes(currency) ? currency : DEFAULT_CURRENCY,
-      category,
-      description: description || "",
-      method,
-    };
+    const { expense, error } = validateExpensePayload(body);
+    if (error) return json(res, 400, { ok: false, error });
 
     try {
       const updatedRange = await appendExpense(expense);
@@ -177,10 +232,12 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "DELETE" && req.url.startsWith("/expense/")) {
+    if (!requireApiToken(req, res)) return;
     const id = req.url.split("/").pop();
     try {
       const auth = getAuthClient();
       const sheets = google.sheets({ version: "v4", auth });
+      const sheetId = await getSheetId(sheets);
       const result = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
         range: `${SHEET_NAME}!A:H`,
@@ -193,9 +250,9 @@ const server = http.createServer(async (req, res) => {
       const request = {
         requests: [{
           deleteDimension: {
-            range: { sheetId: 0, dimension: "ROWS", startIndex: rowIndex, endIndex: rowIndex + 1 }
-          }
-        }]
+            range: { sheetId, dimension: "ROWS", startIndex: rowIndex, endIndex: rowIndex + 1 }
+          },
+        }],
       };
       await sheets.spreadsheets.batchUpdate({ spreadsheetId: SPREADSHEET_ID, requestBody: request });
       
@@ -207,15 +264,13 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "PUT" && req.url.startsWith("/expense/")) {
+    if (!requireApiToken(req, res)) return;
     const id = req.url.split("/").pop();
     let body;
     try { body = await parseBody(req); } catch (e) { return json(res, 400, { ok: false, error: "Invalid JSON body" }); }
 
-    const { date, amount, currency, category, description, method } = body;
-    if (!date || isNaN(Date.parse(date))) return json(res, 400, { ok: false, error: "Valid date is required" });
-    if (amount == null || isNaN(Number(amount)) || Number(amount) <= 0) return json(res, 400, { ok: false, error: "Amount must be positive" });
-    if (!VALID_CATEGORIES.includes(category)) return json(res, 400, { ok: false, error: "Invalid category" });
-    if (!VALID_METHODS.includes(method)) return json(res, 400, { ok: false, error: "Invalid payment method" });
+    const { expense, error } = validateExpensePayload(body);
+    if (error) return json(res, 400, { ok: false, error });
 
     try {
       const auth = getAuthClient();
@@ -227,7 +282,7 @@ const server = http.createServer(async (req, res) => {
       if (rowIndex === -1) return json(res, 404, { ok: false, error: "Expense not found" });
       
       const loggedAt = rows[rowIndex][6];
-      const rowData = [date, Number(amount), currency, category, description || "", method, loggedAt, id];
+      const rowData = [expense.date, expense.amount, expense.currency, expense.category, expense.description, expense.method, loggedAt, id];
       
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
@@ -244,9 +299,14 @@ const server = http.createServer(async (req, res) => {
 
   res.writeHead(404);
   res.end("Not found");
-});
+}
 
-server.listen(PORT, () => {
-  console.log(`Expense tracker running at http://localhost:${PORT}`);
-  console.log("Press Ctrl+C to stop.");
-});
+module.exports = handler;
+
+if (require.main === module) {
+  const server = http.createServer(handler);
+  server.listen(PORT, () => {
+    console.log(`Expense tracker running at http://localhost:${PORT}`);
+    console.log("Press Ctrl+C to stop.");
+  });
+}

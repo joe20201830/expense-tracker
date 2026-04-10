@@ -32,7 +32,7 @@ Single-file Node.js HTTP server (`server.js`) + single-page app (`index.html`). 
 ## Google Sheets integration
 
 All Sheet access goes through `googleapis` with a service account. Auth picks credentials in this order:
-1. `GOOGLE_SERVICE_ACCOUNT_KEY` env var (JSON string) — used in production (Railway)
+1. `GOOGLE_SERVICE_ACCOUNT_KEY` env var (JSON string, or base64-encoded JSON for backward compatibility) — used in production
 2. `./credentials.json` file — used locally
 
 Sheet columns: `Date | Amount | Currency | Category | Description | Method | Logged At | ID`
@@ -43,6 +43,7 @@ Sheet name is hardcoded as `SHEET_NAME = "Sheet1"`. To add a second tab, create 
 
 | Variable | Notes |
 |----------|-------|
+| `API_TOKEN` | Shared bearer token for the deployed app API |
 | `SPREADSHEET_ID` | Google Sheet ID from URL |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | Full credentials JSON as a string (production) |
 | `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` | Path to credentials file (local, defaults to `./credentials.json`) |
@@ -55,7 +56,7 @@ All expense data is fetched once via `fetchAll()` and cached in `allExpenses`. C
 
 ## Deployment
 
-Pushed to GitHub (`joe20201830/expense-tracker`, private). Railway auto-deploys on every push to `main`. Production env vars are set in Railway's Variables tab.
+Pushed to GitHub (`joe20201830/expense-tracker`, private). Vercel deploys the app. Production env vars, including `API_TOKEN`, are set in the Vercel project settings.
 
 ## Valid field values
 
