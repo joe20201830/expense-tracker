@@ -79,7 +79,7 @@ function requireApiToken(req, res) {
 }
 
 function validateExpensePayload(payload) {
-  const { date, amount, currency, category, description, method } = payload || {};
+  const { date, amount, currency, category, description, method, tag } = payload || {};
   if (!date || isNaN(Date.parse(date))) {
     return { error: "Valid date is required" };
   }
@@ -95,10 +95,17 @@ function validateExpensePayload(payload) {
   if (description != null && typeof description !== "string") {
     return { error: "Description must be text" };
   }
+  if (tag != null && typeof tag !== "string") {
+    return { error: "Tag must be text" };
+  }
 
   const normalizedDescription = (description || "").trim();
+  const normalizedTag = (tag || "").trim();
   if (normalizedDescription.length > 200) {
     return { error: "Description max 200 characters" };
+  }
+  if (normalizedTag.length > 60) {
+    return { error: "Tag max 60 characters" };
   }
 
   return {
@@ -109,6 +116,7 @@ function validateExpensePayload(payload) {
       category,
       description: normalizedDescription,
       method,
+      tag: normalizedTag,
     },
   };
 }
@@ -128,16 +136,16 @@ async function getSheetId(sheets) {
 async function ensureHeader(sheets) {
   const result = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A1:H1`,
+    range: `${SHEET_NAME}!A1:I1`,
   });
   const row = result.data.values?.[0];
-  if (!row || row[0] !== "Date") {
+  if (!row || row[0] !== "Date" || row[8] !== "Tag") {
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!A1`,
       valueInputOption: "RAW",
       requestBody: {
-        values: [["Date", "Amount", "Currency", "Category", "Description", "Method", "Logged At", "ID"]],
+        values: [["Date", "Amount", "Currency", "Category", "Description", "Method", "Logged At", "ID", "Tag"]],
       },
     });
   }
@@ -156,10 +164,11 @@ async function appendExpense(expense) {
     expense.method,
     new Date().toISOString(),
     expense.id || randomUUID(),
+    expense.tag || "",
   ];
   const result = await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A:H`,
+    range: `${SHEET_NAME}!A:I`,
     valueInputOption: "RAW",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
@@ -172,12 +181,12 @@ async function fetchExpenses() {
   const sheets = google.sheets({ version: "v4", auth });
   const result = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A:H`,
+    range: `${SHEET_NAME}!A:I`,
   });
   const rows = result.data.values || [];
   if (rows.length <= 1) return [];
-  return rows.slice(1).reverse().map(([date, amount, currency, category, description, method, loggedAt, id]) => ({
-    date, amount, currency, category, description, method, loggedAt, id,
+  return rows.slice(1).reverse().map(([date, amount, currency, category, description, method, loggedAt, id, tag]) => ({
+    date, amount, currency, category, description, method, loggedAt, id, tag: tag || "",
   }));
 }
 
@@ -240,7 +249,7 @@ async function handler(req, res) {
       const sheetId = await getSheetId(sheets);
       const result = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: `${SHEET_NAME}!A:H`,
+        range: `${SHEET_NAME}!A:I`,
       });
       const rows = result.data.values || [];
       const rowIndex = rows.findIndex(row => row[7] === id);
@@ -275,18 +284,18 @@ async function handler(req, res) {
     try {
       const auth = getAuthClient();
       const sheets = google.sheets({ version: "v4", auth });
-      const result = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!A:H` });
+      const result = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!A:I` });
       const rows = result.data.values || [];
       const rowIndex = rows.findIndex(row => row[7] === id);
       
       if (rowIndex === -1) return json(res, 404, { ok: false, error: "Expense not found" });
       
       const loggedAt = rows[rowIndex][6];
-      const rowData = [expense.date, expense.amount, expense.currency, expense.category, expense.description, expense.method, loggedAt, id];
+      const rowData = [expense.date, expense.amount, expense.currency, expense.category, expense.description, expense.method, loggedAt, id, expense.tag || ""];
       
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
-        range: `${SHEET_NAME}!A${rowIndex + 1}:H${rowIndex + 1}`,
+        range: `${SHEET_NAME}!A${rowIndex + 1}:I${rowIndex + 1}`,
         valueInputOption: "RAW",
         requestBody: { values: [rowData] }
       });

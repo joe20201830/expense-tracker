@@ -24,8 +24,8 @@ Single-file Node.js HTTP server (`server.js`) + single-page app (`index.html`). 
 
 **`index.html`** — fully self-contained SPA. All CSS and JS inline. Three tabs managed by `switchTab()`:
 - **Add** (default) — expense form + hero summary card
-- **History** — most recent 10 expenses (sorted by spending date, not logged-at), category/method filters, "Recurring" button showing monthly subscriptions
-- **Analytics** — last-7-days bar chart, 6-week trend line chart, category breakdown (all via Chart.js CDN)
+- **History** — most recent 10 expenses (sorted by spending date, not logged-at), category/method/tag/date-range filters, "Recurring" button showing monthly subscriptions
+- **Analytics** — 6-week and 6-month spending histograms, category breakdown (all via Chart.js CDN)
 
 **`google-apps-script.js`** — standalone script pasted into Google Sheets Apps Script editor. Calls the Claude API directly via `UrlFetchApp` for in-sheet analysis. Not part of the Node app.
 
@@ -35,7 +35,7 @@ All Sheet access goes through `googleapis` with a service account. Auth picks cr
 1. `GOOGLE_SERVICE_ACCOUNT_KEY` env var (JSON string, or base64-encoded JSON for backward compatibility) — used in production
 2. `./credentials.json` file — used locally
 
-Sheet columns: `Date | Amount | Currency | Category | Description | Method | Logged At | ID`
+Sheet columns: `Date | Amount | Currency | Category | Description | Method | Logged At | ID | Tag`
 
 Sheet name is hardcoded as `SHEET_NAME = "Sheet1"`. To add a second tab, create a new read/write function and change the range prefix (e.g. `Budget!A:C`).
 

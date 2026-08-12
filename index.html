@@ -78,8 +78,13 @@
     #toast.error { background: var(--red); }
 
     /* ── History ── */
-    .filters { display: flex; gap: 8px; padding: 0 16px 12px; }
-    .filters select { height: 38px; font-size: .83rem; border-radius: 10px; flex: 1; }
+    .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 16px 12px; }
+    .filters select, .filters input { height: 42px; font-size: .82rem; border-radius: 10px; min-width: 0; }
+    #filter-tag { grid-column: 1 / -1; }
+    .date-filter { position: relative; }
+    .date-filter span { position: absolute; top: 5px; left: 11px; color: var(--muted); font-size: .58rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; pointer-events: none; }
+    .date-filter input { padding: 16px 8px 0 11px; font-size: .76rem; }
+    .tag-chip { display: inline-block; max-width: 100%; margin-top: 5px; padding: 2px 7px; border-radius: 100px; background: var(--primary-glow); color: #A89BFF; font-size: .68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
     .expense-list { padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
     .swipe-wrapper { position: relative; border-radius: 14px; overflow: hidden; }
     .swipe-actions { position: absolute; right: 0; top: 0; bottom: 0; display: flex; }
@@ -207,6 +212,11 @@
           </select>
         </div>
         <div class="field">
+          <label for="tag">Tag <span style="font-weight:400;text-transform:none">(optional)</span></label>
+          <input type="text" id="tag" list="tag-options" maxlength="60" placeholder="Choose or add a tag, e.g. Tokyo trip" autocomplete="off" />
+          <datalist id="tag-options"></datalist>
+        </div>
+        <div class="field">
           <label for="description">Note <span style="font-weight:400;text-transform:none">(optional)</span></label>
           <textarea id="description" placeholder="e.g. Lunch with team"></textarea>
         </div>
@@ -238,6 +248,17 @@
         <option>Credit Card (國泰)</option>
         <option>EtherFi</option>
       </select>
+      <select id="filter-tag">
+        <option value="">All Tags</option>
+      </select>
+      <div class="date-filter">
+        <span>From</span>
+        <input type="date" id="filter-date-from" aria-label="Filter from date" />
+      </div>
+      <div class="date-filter">
+        <span>To</span>
+        <input type="date" id="filter-date-to" aria-label="Filter to date" />
+      </div>
     </div>
     <div class="expense-list" id="history-list">
       <div class="empty">Loading…</div>
@@ -259,12 +280,12 @@
     </div>
 
     <div class="chart-card">
-      <div class="chart-title">Last 7 Days</div>
+      <div class="chart-title">Weekly Trend (last 6 weeks)</div>
       <canvas id="weeklyChart" height="150"></canvas>
     </div>
 
     <div class="chart-card">
-      <div class="chart-title">Weekly Trend (last 6 weeks)</div>
+      <div class="chart-title">Monthly Trend (last 6 months)</div>
       <canvas id="monthlyChart" height="150"></canvas>
     </div>
 
@@ -378,7 +399,10 @@ async function fetchRate() {
 // ── Init ──────────────────────────────────────────────────────
 document.getElementById("date").value = today;
 document.getElementById("today-label").textContent = new Date().toLocaleDateString("en", { weekday:"long", month:"long", day:"numeric" });
-fetchRate().then(() => fetchAll().then(loadHeroSummary).catch(() => {}));
+fetchRate().then(() => fetchAll().then(expenses => {
+  loadHeroSummary(expenses);
+  refreshTagOptions(expenses);
+}).catch(() => {}));
 
 function clearApiToken() {
   apiToken = "";
@@ -449,6 +473,25 @@ function invalidateCache() {
   historyLoaded = false;
 }
 
+function getTags(expenses) {
+  const tags = new Map();
+  expenses.forEach(expense => {
+    const tag = (expense.tag || "").trim();
+    if (tag && !tags.has(tag.toLocaleLowerCase())) tags.set(tag.toLocaleLowerCase(), tag);
+  });
+  return [...tags.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
+function refreshTagOptions(expenses) {
+  const tags = getTags(expenses);
+  document.getElementById("tag-options").replaceChildren(...tags.map(tag => new Option(tag, tag)));
+
+  const filter = document.getElementById("filter-tag");
+  const selected = filter.value;
+  filter.replaceChildren(new Option("All Tags", ""), ...tags.map(tag => new Option(tag, tag)));
+  if (tags.includes(selected)) filter.value = selected;
+}
+
 // ── Tab switching ─────────────────────────────────────────────
 function switchTab(tab) {
   document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
@@ -496,6 +539,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
     currency: document.getElementById("currency").value,
     category: document.getElementById("category").value,
     method: document.getElementById("method").value,
+    tag: document.getElementById("tag").value.trim(),
     description: document.getElementById("description").value.trim(),
   };
   try {
@@ -509,10 +553,14 @@ document.getElementById("form").addEventListener("submit", async (e) => {
         cancelEdit();
       } else {
         document.getElementById("amount").value = "";
+        document.getElementById("tag").value = "";
         document.getElementById("description").value = "";
       }
       invalidateCache();
-      fetchAll().then(loadHeroSummary).catch(() => {});
+      fetchAll().then(expenses => {
+        loadHeroSummary(expenses);
+        refreshTagOptions(expenses);
+      }).catch(() => {});
     } else {
       showToast(data.error || "Error — try again", true);
     }
@@ -530,6 +578,7 @@ function startEdit(expense) {
   document.getElementById("currency").value = expense.currency;
   document.getElementById("category").value = expense.category;
   document.getElementById("method").value = expense.method;
+  document.getElementById("tag").value = expense.tag || "";
   document.getElementById("description").value = expense.description || "";
   document.getElementById("submit-btn").textContent = "Update Expense";
   document.getElementById("cancel-edit-btn").style.display = "block";
@@ -573,9 +622,20 @@ async function loadHistory() {
     const expenses = await fetchAll();
     historyLoaded = true;
     historyLimit = 10;
+    refreshTagOptions(expenses);
     renderHistory(expenses);
-    document.getElementById("filter-cat").onchange = () => { historyLimit = 10; renderHistory(expenses); };
-    document.getElementById("filter-method").onchange = () => { historyLimit = 10; renderHistory(expenses); };
+    ["filter-cat", "filter-method", "filter-tag", "filter-date-from", "filter-date-to"].forEach(id => {
+      document.getElementById(id).onchange = () => {
+        const from = document.getElementById("filter-date-from").value;
+        const to = document.getElementById("filter-date-to").value;
+        if (from && to && from > to) {
+          showToast("From date must be before To date", true);
+          return;
+        }
+        historyLimit = 10;
+        renderHistory(expenses);
+      };
+    });
   } catch {
     document.getElementById("history-list").innerHTML = '<div class="empty">Could not load expenses.</div>';
   }
@@ -584,9 +644,15 @@ async function loadHistory() {
 function renderHistory(expenses) {
   const cat = document.getElementById("filter-cat").value;
   const method = document.getElementById("filter-method").value;
+  const tag = document.getElementById("filter-tag").value;
+  const dateFrom = document.getElementById("filter-date-from").value;
+  const dateTo = document.getElementById("filter-date-to").value;
   let list = [...expenses];
   if (cat) list = list.filter(e => e.category === cat);
   if (method) list = list.filter(e => e.method === method);
+  if (tag) list = list.filter(e => e.tag === tag);
+  if (dateFrom) list = list.filter(e => e.date >= dateFrom);
+  if (dateTo) list = list.filter(e => e.date <= dateTo);
   list.sort((a, b) => b.date.localeCompare(a.date));
   const total = list.length;
   const showing = Math.min(historyLimit, total);
@@ -632,6 +698,13 @@ function renderHistory(expenses) {
     const meta = document.createElement("div");
     meta.className = "meta";
     meta.textContent = `${expense.date} · ${expense.method}`;
+
+    if (expense.tag) {
+      const tag = document.createElement("span");
+      tag.className = "tag-chip";
+      tag.textContent = expense.tag;
+      meta.append(document.createElement("br"), tag);
+    }
 
     const amount = document.createElement("div");
     amount.className = "expense-amount";
@@ -734,30 +807,28 @@ function renderAnalytics(expenses) {
     badge.className = "stat-badge " + (pct >= 0 ? "badge-up" : "badge-down");
   }
 
-  // Last 7 days bar chart
-  const last7 = Array.from({length:7}, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d.toLocaleDateString("en-CA"); });
-  const last7Totals = last7.map(d => expenses.filter(e => e.date === d).reduce((s, e) => s + toTwd(e), 0));
-  const last7Labels = last7.map(d => { const dt = new Date(d + "T12:00:00"); return dt.getDate() + "/" + (dt.getMonth()+1); });
+  // Weekly spending histogram (last 6 weeks)
+  const weeks = last6Weeks(now);
+  weeks.forEach(w => { w.total = expenses.filter(e => e.date >= w.start && e.date <= w.end).reduce((s, e) => s + toTwd(e), 0); });
   if (weeklyChart) weeklyChart.destroy();
   weeklyChart = new Chart(document.getElementById("weeklyChart"), {
     type: "bar",
-    data: { labels: last7Labels, datasets: [{ data: last7Totals, backgroundColor: last7.map(d => d === today ? "#7C6FF7" : "#2D2B6B"), borderRadius: 8, borderSkipped: false }] },
-    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{display:false}, border:{display:false}, ticks:{color:"#7070A0"} }, y:{ grid:{color:"#26264A"}, border:{display:false}, ticks:{maxTicksLimit:4, color:"#7070A0"} } }, responsive:true, maintainAspectRatio:true }
+    data: { labels: weeks.map(w => w.label), datasets: [{ data: weeks.map(w => w.total), backgroundColor: weeks.map((_, i) => i === weeks.length - 1 ? "#7C6FF7" : "#2D2B6B"), borderRadius: 8, borderSkipped: false }] },
+    options: chartOptions()
   });
 
-  // Weekly trend line chart (last 6 weeks)
-  const weeks = last6Weeks(now);
-  weeks.forEach(w => { w.total = expenses.filter(e => e.date >= w.start && e.date <= w.end).reduce((s, e) => s + toTwd(e), 0); });
+  // Monthly spending histogram (last 6 months)
+  const months = last6Months(now);
+  months.forEach(month => { month.total = sumMonth(expenses, month.key); });
   if (monthlyChart) monthlyChart.destroy();
   monthlyChart = new Chart(document.getElementById("monthlyChart"), {
-    type: "line",
-    data: { labels: weeks.map(w => w.label), datasets: [{ data: weeks.map(w => w.total), borderColor:"#7C6FF7", backgroundColor:"rgba(124,111,247,.12)", borderWidth:2.5, fill:true, tension:0.4, pointBackgroundColor:"#7C6FF7", pointRadius:4 }] },
-    options: { plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{display:false}, border:{display:false}, ticks:{color:"#7070A0"} }, y:{ grid:{color:"#26264A"}, border:{display:false}, ticks:{maxTicksLimit:4, color:"#7070A0"} } }, responsive:true, maintainAspectRatio:true }
+    type: "bar",
+    data: { labels: months.map(month => month.label), datasets: [{ data: months.map(month => month.total), backgroundColor: months.map((_, i) => i === months.length - 1 ? "#7C6FF7" : "#2D2B6B"), borderRadius: 8, borderSkipped: false }] },
+    options: chartOptions()
   });
 
   // Category month picker
   const sel = document.getElementById("cat-month-select");
-  const months = last6Months(now);
   sel.innerHTML = months.slice().reverse().map(m => {
     const [yr, mo] = m.key.split("-");
     const label = new Date(+yr, +mo - 1, 1).toLocaleString("en", { month: "short", year: "numeric" });
@@ -808,6 +879,21 @@ function renderCatBreakdown(expenses, key) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────
+function chartOptions() {
+  return {
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: context => `TWD ${Number(context.raw).toLocaleString()}` } },
+    },
+    scales: {
+      x: { grid: { display: false }, border: { display: false }, ticks: { color: "#7070A0", maxRotation: 0, autoSkip: false } },
+      y: { beginAtZero: true, grid: { color: "#26264A" }, border: { display: false }, ticks: { maxTicksLimit: 4, color: "#7070A0" } },
+    },
+    responsive: true,
+    maintainAspectRatio: true,
+  };
+}
+
 function monthKey(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
 function toTwd(e) { return e.currency === "USD" ? Number(e.amount) * usdToTwd : Number(e.amount); }
 function sumMonth(expenses, key) { return expenses.filter(e => e.date.startsWith(key)).reduce((s, e) => s + toTwd(e), 0); }
