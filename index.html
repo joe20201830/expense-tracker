@@ -55,6 +55,7 @@
     .amount-row { display: flex; gap: 10px; }
     .amount-row input { flex: 1; }
     .amount-row select { width: 88px; flex-shrink: 0; }
+    .tag-new-input { margin-top: 8px; }
     select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237070A0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
     .submit-btn { width: 100%; height: 54px; background: var(--primary); color: #fff; border: none; border-radius: 14px; font-size: 1.05rem; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s; margin-top: 6px; }
     .submit-btn:active { transform: scale(.98); background: var(--primary-dark); }
@@ -115,6 +116,7 @@
     .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
     .chart-header .chart-title { margin-bottom: 0; }
     .month-picker { height: 30px; font-size: .78rem; border-radius: 8px; width: auto; padding: 0 26px 0 10px; }
+    .tag-picker { height: 44px; max-width: 68%; min-width: 0; }
     .cat-breakdown { display: flex; flex-direction: column; gap: 13px; }
     .cat-row { display: flex; align-items: center; gap: 11px; }
     .cat-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
@@ -122,6 +124,13 @@
     .cat-row-bar-wrap { width: 80px; height: 5px; background: var(--border); border-radius: 100px; overflow: hidden; }
     .cat-row-bar { height: 100%; border-radius: 100px; transition: width .4s; }
     .cat-row-amount { font-weight: 700; font-size: .88rem; min-width: 70px; text-align: right; }
+    .tag-chart-total { color: var(--muted); font-size: .78rem; margin: -4px 0 12px; }
+    .tag-chart-wrap { position: relative; max-width: 280px; margin: 0 auto; }
+    .tag-chart-list { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+    .tag-chart-row { display: grid; grid-template-columns: 10px 1fr auto auto; align-items: center; gap: 8px; font-size: .78rem; }
+    .tag-chart-row .cat-dot { width: 8px; height: 8px; }
+    .tag-chart-pct { color: var(--muted); min-width: 36px; text-align: right; }
+    .tag-chart-amount { font-weight: 600; min-width: 78px; text-align: right; }
   /* ── Recurring modal ── */
   .recurring-btn { height: 34px; padding: 0 14px; background: var(--card); border: 1.5px solid var(--border); border-radius: 10px; color: var(--muted); font-size: .78rem; font-weight: 500; cursor: pointer; transition: border-color .15s, color .15s; white-space: nowrap; }
   .recurring-btn:hover { border-color: var(--primary); color: var(--primary); }
@@ -212,9 +221,12 @@
           </select>
         </div>
         <div class="field">
-          <label for="tag">Tag <span style="font-weight:400;text-transform:none">(optional)</span></label>
-          <input type="text" id="tag" list="tag-options" maxlength="60" placeholder="Choose or add a tag, e.g. Tokyo trip" autocomplete="off" />
-          <datalist id="tag-options"></datalist>
+          <label for="tag-select">Tag <span style="font-weight:400;text-transform:none">(optional)</span></label>
+          <select id="tag-select" onchange="handleTagSelection(true)">
+            <option value="">No Tag</option>
+            <option value="__new__">+ Add new tag…</option>
+          </select>
+          <input class="tag-new-input" type="text" id="tag-new" maxlength="60" placeholder="New tag, e.g. Tokyo trip" autocomplete="off" hidden />
         </div>
         <div class="field">
           <label for="description">Note <span style="font-weight:400;text-transform:none">(optional)</span></label>
@@ -298,6 +310,21 @@
         <div class="empty" style="padding:8px 0">Loading…</div>
       </div>
     </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">By Tag</div>
+        <select class="month-picker tag-picker" id="analytics-tag-select" aria-label="Choose tag for analytics"></select>
+      </div>
+      <div id="tag-chart-empty" class="empty" style="padding:8px 0">No tagged expenses yet.</div>
+      <div id="tag-chart-content" hidden>
+        <div class="tag-chart-total" id="tag-chart-total"></div>
+        <div class="tag-chart-wrap">
+          <canvas id="tagChart" height="220" role="img" aria-label="Selected tag spending by category"></canvas>
+        </div>
+        <div class="tag-chart-list" id="tag-chart-list" aria-label="Tag category totals"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ══ BOTTOM NAV ══ -->
@@ -373,11 +400,13 @@
 const ICONS = { Food:"🍜", Transport:"🚌", Shopping:"🛍️", Health:"💊", Entertainment:"🎬", Bills:"📋", Travel:"✈️", Other:"📦" };
 const CAT_COLORS = { Food:"#FF6B6B", Transport:"#4ECDC4", Shopping:"#FFD93D", Health:"#6BCB77", Entertainment:"#FF8B94", Bills:"#A78BFA", Travel:"#60A5FA", Other:"#D4A5A5" };
 const API_TOKEN_STORAGE_KEY = "expense-tracker-api-token";
+const NEW_TAG_VALUE = "__new__";
 
 const today = new Date().toLocaleDateString("en-CA");
 let allExpenses = null;
 let weeklyChart = null;
 let monthlyChart = null;
+let tagChart = null;
 let analyticsLoaded = false;
 let historyLoaded = false;
 let editingId = null;
@@ -484,12 +513,51 @@ function getTags(expenses) {
 
 function refreshTagOptions(expenses) {
   const tags = getTags(expenses);
-  document.getElementById("tag-options").replaceChildren(...tags.map(tag => new Option(tag, tag)));
+  const currentTag = getSelectedTag();
+  const tagSelect = document.getElementById("tag-select");
+  tagSelect.replaceChildren(
+    new Option("No Tag", ""),
+    ...tags.map(tag => new Option(tag, tag)),
+    new Option("+ Add new tag…", NEW_TAG_VALUE),
+  );
+  setSelectedTag(currentTag);
 
   const filter = document.getElementById("filter-tag");
   const selected = filter.value;
   filter.replaceChildren(new Option("All Tags", ""), ...tags.map(tag => new Option(tag, tag)));
   if (tags.includes(selected)) filter.value = selected;
+}
+
+function handleTagSelection(focusNew = false) {
+  const select = document.getElementById("tag-select");
+  const input = document.getElementById("tag-new");
+  const addingNew = select.value === NEW_TAG_VALUE;
+  input.hidden = !addingNew;
+  if (!addingNew) input.value = "";
+  if (addingNew && focusNew) input.focus();
+}
+
+function getSelectedTag() {
+  const select = document.getElementById("tag-select");
+  return select.value === NEW_TAG_VALUE ? document.getElementById("tag-new").value.trim() : select.value;
+}
+
+function setSelectedTag(tag) {
+  const value = (tag || "").trim();
+  const select = document.getElementById("tag-select");
+  const input = document.getElementById("tag-new");
+  const matchingOption = [...select.options].find(option => option.value.toLocaleLowerCase() === value.toLocaleLowerCase());
+  if (!value) {
+    select.value = "";
+    input.value = "";
+  } else if (matchingOption) {
+    select.value = matchingOption.value;
+    input.value = "";
+  } else {
+    select.value = NEW_TAG_VALUE;
+    input.value = value;
+  }
+  handleTagSelection(false);
 }
 
 // ── Tab switching ─────────────────────────────────────────────
@@ -539,7 +607,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
     currency: document.getElementById("currency").value,
     category: document.getElementById("category").value,
     method: document.getElementById("method").value,
-    tag: document.getElementById("tag").value.trim(),
+    tag: getSelectedTag(),
     description: document.getElementById("description").value.trim(),
   };
   try {
@@ -553,7 +621,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
         cancelEdit();
       } else {
         document.getElementById("amount").value = "";
-        document.getElementById("tag").value = "";
+        setSelectedTag("");
         document.getElementById("description").value = "";
       }
       invalidateCache();
@@ -578,7 +646,7 @@ function startEdit(expense) {
   document.getElementById("currency").value = expense.currency;
   document.getElementById("category").value = expense.category;
   document.getElementById("method").value = expense.method;
-  document.getElementById("tag").value = expense.tag || "";
+  setSelectedTag(expense.tag || "");
   document.getElementById("description").value = expense.description || "";
   document.getElementById("submit-btn").textContent = "Update Expense";
   document.getElementById("cancel-edit-btn").style.display = "block";
@@ -594,6 +662,7 @@ function cancelEdit() {
   document.getElementById("edit-banner").style.display = "none";
   document.getElementById("form").reset();
   document.getElementById("date").value = today;
+  setSelectedTag("");
 }
 
 async function deleteExpense(id, wrapper) {
@@ -837,6 +906,13 @@ function renderAnalytics(expenses) {
   sel.value = thisKey;
   sel.onchange = () => renderCatBreakdown(expenses, sel.value);
   renderCatBreakdown(expenses, thisKey);
+
+  const tagSelect = document.getElementById("analytics-tag-select");
+  const tags = getTags(expenses);
+  tagSelect.replaceChildren(...tags.map(tag => new Option(tag, tag)));
+  tagSelect.disabled = tags.length === 0;
+  tagSelect.onchange = () => renderTagBreakdown(expenses, tagSelect.value);
+  renderTagBreakdown(expenses, tags[0] || "");
 }
 
 function renderCatBreakdown(expenses, key) {
@@ -876,6 +952,66 @@ function renderCatBreakdown(expenses, key) {
     row.append(dot, name, barWrap, amount);
     container.append(row);
   });
+}
+
+function renderTagBreakdown(expenses, selectedTag) {
+  const empty = document.getElementById("tag-chart-empty");
+  const content = document.getElementById("tag-chart-content");
+  if (tagChart) { tagChart.destroy(); tagChart = null; }
+
+  const normalizedTag = selectedTag.toLocaleLowerCase();
+  const filtered = expenses.filter(expense => (expense.tag || "").trim().toLocaleLowerCase() === normalizedTag);
+  const totals = {};
+  filtered.forEach(expense => { totals[expense.category] = (totals[expense.category] || 0) + toTwd(expense); });
+  const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  if (!selectedTag || !sorted.length) {
+    empty.textContent = selectedTag ? "No expenses found for this tag." : "No tagged expenses yet.";
+    empty.hidden = false;
+    content.hidden = true;
+    return;
+  }
+
+  const labels = sorted.map(([category]) => category);
+  const values = sorted.map(([, total]) => total);
+  const total = values.reduce((sum, value) => sum + value, 0);
+  empty.hidden = true;
+  content.hidden = false;
+  document.getElementById("tag-chart-total").textContent = `${filtered.length} expense${filtered.length === 1 ? "" : "s"} · TWD ${total.toLocaleString()}`;
+
+  tagChart = new Chart(document.getElementById("tagChart"), {
+    type: "pie",
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: labels.map(category => CAT_COLORS[category] || "#7070A0"), borderColor: "#1A1A2E", borderWidth: 2 }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { position: "bottom", labels: { color: "#EEEEFF", padding: 14, boxWidth: 10, boxHeight: 10, usePointStyle: true } },
+        tooltip: { callbacks: { label: context => `${context.label}: TWD ${Number(context.raw).toLocaleString()} (${(Number(context.raw) / total * 100).toFixed(1)}%)` } },
+      },
+    },
+  });
+
+  const list = document.getElementById("tag-chart-list");
+  list.replaceChildren(...sorted.map(([category, amount]) => {
+    const row = document.createElement("div");
+    row.className = "tag-chart-row";
+    const dot = document.createElement("span");
+    dot.className = "cat-dot";
+    dot.style.background = CAT_COLORS[category] || "#7070A0";
+    const name = document.createElement("span");
+    name.textContent = category;
+    const percent = document.createElement("span");
+    percent.className = "tag-chart-pct";
+    percent.textContent = `${(amount / total * 100).toFixed(1)}%`;
+    const value = document.createElement("span");
+    value.className = "tag-chart-amount";
+    value.textContent = `TWD ${amount.toLocaleString()}`;
+    row.append(dot, name, percent, value);
+    return row;
+  }));
 }
 
 // ── Helpers ───────────────────────────────────────────────────
