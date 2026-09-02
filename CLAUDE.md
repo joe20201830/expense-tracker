@@ -25,7 +25,7 @@ Single-file Node.js HTTP server (`server.js`) + single-page app (`index.html`). 
 **`index.html`** — fully self-contained SPA. All CSS and JS inline. Three tabs managed by `switchTab()`:
 - **Add** (default) — expense form + hero summary card
 - **History** — most recent 10 expenses (sorted by spending date, not logged-at), category/method/tag/date-range filters, "Recurring" button showing monthly subscriptions
-- **Analytics** — 6-week and 6-month spending histograms, monthly category breakdown, and per-tag category pie chart (all via Chart.js CDN)
+- **Analytics** — 6-month spending histogram, monthly category breakdown, and per-tag category pie chart (all via Chart.js CDN)
 
 **`google-apps-script.js`** — standalone script pasted into Google Sheets Apps Script editor. Calls the Claude API directly via `UrlFetchApp` for in-sheet analysis. Not part of the Node app.
 
