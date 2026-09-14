@@ -121,6 +121,23 @@ function validateExpensePayload(payload) {
   };
 }
 
+function getStaticFile(requestPath) {
+  switch (requestPath) {
+    case "/index.html":
+      return { filePath: path.join(__dirname, "index.html"), contentType: "text/html" };
+    case "/manifest.json":
+      return { filePath: path.join(__dirname, "manifest.json"), contentType: "application/json" };
+    case "/sw.js":
+      return { filePath: path.join(__dirname, "sw.js"), contentType: "application/javascript" };
+    case "/icon.svg":
+      return { filePath: path.join(__dirname, "icon.svg"), contentType: "image/svg+xml" };
+    case "/icon.png":
+      return { filePath: path.join(__dirname, "icon.png"), contentType: "image/png" };
+    default:
+      return null;
+  }
+}
+
 async function getSheetId(sheets) {
   const result = await sheets.spreadsheets.get({
     spreadsheetId: SPREADSHEET_ID,
@@ -192,20 +209,18 @@ async function fetchExpenses() {
 
 async function handler(req, res) {
   const requestPath = new URL(req.url, "http://localhost").pathname.replace(/^\/api(?=\/|$)/, "") || "/";
+  const staticFile = getStaticFile(requestPath);
 
-  if (req.method === "GET" && (requestPath === "/" || requestPath === "/index.html")) {
-    const file = fs.readFileSync(path.join(__dirname, "index.html"));
-    res.writeHead(200, { "Content-Type": "text/html" });
-    return res.end(file);
-  }
-
-  // Serve static PWA files
-  if (req.method === "GET" && (requestPath === "/manifest.json" || requestPath === "/sw.js" || requestPath === "/icon.svg" || requestPath === "/icon.png")) {
-    const filePath = path.join(__dirname, requestPath.slice(1));
-    if (fs.existsSync(filePath)) {
-      const ext = requestPath.endsWith(".json") ? "application/json" : requestPath.endsWith(".svg") ? "image/svg+xml" : requestPath.endsWith(".png") ? "image/png" : "application/javascript";
-      res.writeHead(200, { "Content-Type": ext });
-      return res.end(fs.readFileSync(filePath));
+  if (req.method === "GET" && (requestPath === "/" || staticFile)) {
+    const filePath = requestPath === "/" ? path.join(__dirname, "index.html") : staticFile.filePath;
+    const contentType = requestPath === "/" ? "text/html" : staticFile.contentType;
+    try {
+      const file = fs.readFileSync(filePath);
+      res.writeHead(200, { "Content-Type": contentType });
+      return res.end(file);
+    } catch {
+      res.writeHead(404);
+      return res.end("Not found");
     }
   }
 
