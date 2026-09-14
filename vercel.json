@@ -1,3 +1,14 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/[...path].js": {
+      "includeFiles": ["index.html", "manifest.json", "sw.js", "icon.png", "icon.svg"]
+    }
+  },
+  "rewrites": [
+    { "source": "/manifest.json", "destination": "/api/manifest.json" },
+    { "source": "/sw.js", "destination": "/api/sw.js" },
+    { "source": "/icon.png", "destination": "/api/icon.png" },
+    { "source": "/icon.svg", "destination": "/api/icon.svg" }
+  ]
 }
