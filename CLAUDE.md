@@ -16,10 +16,10 @@ Single-file Node.js HTTP server (`server.js`) + single-page app (`index.html`). 
 
 **`server.js`** — raw `http.createServer`. Handles:
 - `GET /` — serves `index.html`
-- `GET /expenses/all` — fetches all rows from Google Sheet, returns newest-first JSON
-- `POST /expense` — validates body, appends one row to Sheet
-- `PUT /expense/:id` — updates a row by UUID (full sheet scan to find the row)
-- `DELETE /expense/:id` — deletes a row by UUID (full sheet scan to find the row)
+- `GET /api/expenses/all` — fetches all rows from Google Sheet, returns newest-first JSON
+- `POST /api/expense` — validates body, appends one row to Sheet
+- `PUT /api/expense/:id` — updates a row by UUID (full sheet scan to find the row)
+- `DELETE /api/expense/:id` — deletes a row by UUID (full sheet scan to find the row)
 - `GET /manifest.json`, `/sw.js`, `/icon.png`, `/icon.svg` — static PWA assets
 
 **`index.html`** — fully self-contained SPA. All CSS and JS inline. Three tabs managed by `switchTab()`:
@@ -56,7 +56,7 @@ All expense data is fetched once via `fetchAll()` and cached in `allExpenses`. C
 
 ## Deployment
 
-Pushed to GitHub (`joe20201830/expense-tracker`, private). Vercel deploys the app. Production env vars, including `API_TOKEN`, are set in the Vercel project settings.
+Pushed to GitHub (`joe20201830/expense-tracker`, private). Vercel deploys the static files and the catch-all function at `api/[...path].js`. Production env vars, including `API_TOKEN`, are set in the Vercel project settings.
 
 ## Valid field values
 

@@ -191,23 +191,25 @@ async function fetchExpenses() {
 }
 
 async function handler(req, res) {
-  if (req.method === "GET" && (req.url === "/" || req.url === "/index.html")) {
+  const requestPath = new URL(req.url, "http://localhost").pathname.replace(/^\/api(?=\/|$)/, "") || "/";
+
+  if (req.method === "GET" && (requestPath === "/" || requestPath === "/index.html")) {
     const file = fs.readFileSync(path.join(__dirname, "index.html"));
     res.writeHead(200, { "Content-Type": "text/html" });
     return res.end(file);
   }
 
   // Serve static PWA files
-  if (req.method === "GET" && (req.url === "/manifest.json" || req.url === "/sw.js" || req.url === "/icon.svg" || req.url === "/icon.png")) {
-    const filePath = path.join(__dirname, req.url.slice(1));
+  if (req.method === "GET" && (requestPath === "/manifest.json" || requestPath === "/sw.js" || requestPath === "/icon.svg" || requestPath === "/icon.png")) {
+    const filePath = path.join(__dirname, requestPath.slice(1));
     if (fs.existsSync(filePath)) {
-      const ext = req.url.endsWith(".json") ? "application/json" : req.url.endsWith(".svg") ? "image/svg+xml" : req.url.endsWith(".png") ? "image/png" : "application/javascript";
+      const ext = requestPath.endsWith(".json") ? "application/json" : requestPath.endsWith(".svg") ? "image/svg+xml" : requestPath.endsWith(".png") ? "image/png" : "application/javascript";
       res.writeHead(200, { "Content-Type": ext });
       return res.end(fs.readFileSync(filePath));
     }
   }
 
-  if (req.method === "GET" && req.url === "/expenses/all") {
+  if (req.method === "GET" && requestPath === "/expenses/all") {
     if (!requireApiToken(req, res)) return;
     try {
       const expenses = await fetchExpenses();
@@ -218,7 +220,7 @@ async function handler(req, res) {
     }
   }
 
-  if (req.method === "POST" && req.url === "/expense") {
+  if (req.method === "POST" && requestPath === "/expense") {
     if (!requireApiToken(req, res)) return;
     let body;
     try {
@@ -240,9 +242,9 @@ async function handler(req, res) {
     }
   }
 
-  if (req.method === "DELETE" && req.url.startsWith("/expense/")) {
+  if (req.method === "DELETE" && requestPath.startsWith("/expense/")) {
     if (!requireApiToken(req, res)) return;
-    const id = req.url.split("/").pop();
+    const id = requestPath.split("/").pop();
     try {
       const auth = getAuthClient();
       const sheets = google.sheets({ version: "v4", auth });
@@ -272,9 +274,9 @@ async function handler(req, res) {
     }
   }
 
-  if (req.method === "PUT" && req.url.startsWith("/expense/")) {
+  if (req.method === "PUT" && requestPath.startsWith("/expense/")) {
     if (!requireApiToken(req, res)) return;
-    const id = req.url.split("/").pop();
+    const id = requestPath.split("/").pop();
     let body;
     try { body = await parseBody(req); } catch (e) { return json(res, 400, { ok: false, error: "Invalid JSON body" }); }
 

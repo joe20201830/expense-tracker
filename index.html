@@ -519,7 +519,7 @@ async function apiRequest(url, options = {}, allowRetry = true) {
 // ── Fetch all (cached) ────────────────────────────────────────
 async function fetchAll() {
   if (allExpenses) return allExpenses;
-  const res = await apiRequest("/expenses/all");
+  const res = await apiRequest("/api/expenses/all");
   const data = await readJsonResponse(res);
   if (!data.ok) throw new Error(data.error);
   allExpenses = data.expenses;
@@ -641,7 +641,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
     description: document.getElementById("description").value.trim(),
   };
   try {
-    const url = editingId ? `/expense/${editingId}` : "/expense";
+    const url = editingId ? `/api/expense/${editingId}` : "/api/expense";
     const method = editingId ? "PUT" : "POST";
     const res = await apiRequest(url, { method, body: JSON.stringify(payload) });
     const data = await readJsonResponse(res);
@@ -698,7 +698,7 @@ function cancelEdit() {
 async function deleteExpense(id, wrapper) {
   if (!confirm("Delete this expense?")) return;
   try {
-    const res = await apiRequest(`/expense/${id}`, { method: "DELETE" });
+    const res = await apiRequest(`/api/expense/${id}`, { method: "DELETE" });
     const data = await readJsonResponse(res);
     if (data.ok) {
       showToast("Deleted");
