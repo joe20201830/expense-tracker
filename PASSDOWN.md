@@ -5,7 +5,7 @@ Deployed and healthy. No known open bugs. Verified live 2026-10-05.
 
 - Production: https://expense-tracker-sepia-psi-86.vercel.app/
 - Repo: `joe20201830/expense-tracker` (private), branch `main`
-- Latest commit at handoff: `c9423e1` Bundle PWA assets with the Vercel function
+- This file is tracked in git; run `git log -3 --oneline` for commits since it was written.
 
 Live check passed for `/`, `/manifest.json`, `/sw.js`, and `/api/expenses/all`; the app loads real Sheet data.
 
@@ -29,5 +29,4 @@ There is no pending task queue. Ask the user what to work on next.
 ## Local Housekeeping
 - `icon.svg` is deleted in the working tree but still present in the deployed commit, so production serves it and local does not.
 - `Design Reference.webp` and `Design Reference 2.webp` are untracked reference images.
-- `PASSDOWN.md` is untracked, so it does not travel with a fresh clone.
 - No automated tests. Verification is manual checks plus syntax validation.
