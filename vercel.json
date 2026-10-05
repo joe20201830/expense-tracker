@@ -3,7 +3,6 @@
   "rewrites": [
     { "source": "/manifest.json", "destination": "/api/manifest.json" },
     { "source": "/sw.js", "destination": "/api/sw.js" },
-    { "source": "/icon.png", "destination": "/api/icon.png" },
-    { "source": "/icon.svg", "destination": "/api/icon.svg" }
+    { "source": "/icon.png", "destination": "/api/icon.png" }
   ]
 }

@@ -129,8 +129,6 @@ function getStaticFile(requestPath) {
       return { filePath: path.join(__dirname, "manifest.json"), contentType: "application/json" };
     case "/sw.js":
       return { filePath: path.join(__dirname, "sw.js"), contentType: "application/javascript" };
-    case "/icon.svg":
-      return { filePath: path.join(__dirname, "icon.svg"), contentType: "image/svg+xml" };
     case "/icon.png":
       return { filePath: path.join(__dirname, "icon.png"), contentType: "image/png" };
     default:

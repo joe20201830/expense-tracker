@@ -20,7 +20,7 @@ Single-file Node.js HTTP server (`server.js`) + single-page app (`index.html`). 
 - `POST /api/expense` — validates body, appends one row to Sheet
 - `PUT /api/expense/:id` — updates a row by UUID (full sheet scan to find the row)
 - `DELETE /api/expense/:id` — deletes a row by UUID (full sheet scan to find the row)
-- `GET /manifest.json`, `/sw.js`, `/icon.png`, `/icon.svg` — static PWA assets
+- `GET /manifest.json`, `/sw.js`, `/icon.png` — static PWA assets
 
 **`index.html`** — fully self-contained SPA. All CSS and JS inline. Three tabs managed by `switchTab()`:
 - **Add** (default) — expense form + hero summary card
@@ -56,7 +56,14 @@ All expense data is fetched once via `fetchAll()` and cached in `allExpenses`. C
 
 ## Deployment
 
-Pushed to GitHub (`joe20201830/expense-tracker`, private). Vercel deploys the static files and the catch-all function at `api/[...path].js`. Production env vars, including `API_TOKEN`, are set in the Vercel project settings.
+Pushed to GitHub (`joe20201830/expense-tracker`, private). Vercel builds one function at `api/[...path].js` that re-exports the handler from `server.js` and serves everything, the PWA assets included. `vercel.json` rewrites `/manifest.json`, `/sw.js`, and `/icon.png` to `/api/*`. Production env vars, including `API_TOKEN`, are set in the Vercel project settings.
+
+Two mistakes have each broken production once:
+
+- Vercel bundles only files it can trace from literal paths. `getStaticFile()` in `server.js` returns explicit `path.join(__dirname, "<file>")` values for exactly that reason. Keep those paths literal.
+- Never use `api/[...path].js` as a key in the `functions` block of `vercel.json`. Vercel reads `[...path]` as a glob, matches nothing, and fails the build.
+
+`sw.js` uses network-first caching so stale clients self-clear. Bump `CACHE` whenever its logic changes.
 
 ## Valid field values
 
