@@ -91,6 +91,7 @@
     .date-filter input { padding: 16px 8px 0 11px; font-size: .76rem; }
     .tag-chip { display: inline-block; max-width: 100%; margin-top: 5px; padding: 2px 7px; border-radius: 100px; background: var(--primary-glow); color: #F3A7C2; font-size: .68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
     .expense-list { padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
+    .history-day-divider { height: 1px; margin: 7px 12px; background: var(--border); opacity: .6; }
     .swipe-wrapper { position: relative; border-radius: 14px; overflow: hidden; }
     .swipe-actions { position: absolute; right: 0; top: 0; bottom: 0; display: flex; }
     .action-btn { width: 64px; height: 100%; border: none; cursor: pointer; font-size: 1.3rem; display: flex; align-items: center; justify-content: center; }
@@ -159,7 +160,7 @@
   .rec-icon-btn { width: 30px; height: 30px; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity .15s; }
   .rec-icon-btn:active { opacity: .7; }
   .rec-edit-btn { background: rgba(216,79,131,.15); }
-  .rec-delete-btn { background: rgba(255,113,133,.15); }
+  .rec-delete-btn { width: 100%; height: 40px; margin-top: 10px; background: none; color: var(--red); border: 1px solid rgba(255,113,133,.35); border-radius: 10px; font-size: .85rem; cursor: pointer; }
   .rec-item-actions { display: flex; gap: 6px; align-items: center; margin-left: 8px; }
   #recurring-form { background: var(--card2); border-radius: 14px; padding: 16px; margin-bottom: 4px; border: 1.5px solid var(--border); }
   #recurring-form .field { margin-bottom: 12px; }
@@ -187,7 +188,7 @@
     <div class="edit-mode-banner" id="edit-banner">✏️ Editing expense — make changes and tap Update</div>
 
     <div class="hero-card">
-      <div class="hero-label">This Month's Spending</div>
+      <div class="hero-label">Spending in the Last 14 Days</div>
       <div class="hero-amount" id="hero-amount">—</div>
       <div class="hero-change" id="hero-change"></div>
     </div>
@@ -382,10 +383,20 @@
             <option>Travel</option><option>Other</option>
           </select>
         </div>
+        <div class="field">
+          <label for="rec-method">Payment Method</label>
+          <select id="rec-method">
+            <option value="">Select a method</option>
+            <option>Cash</option>
+            <option>Credit Card (國泰)</option>
+            <option>EtherFi</option>
+          </select>
+        </div>
         <div class="rec-form-btns">
           <button class="rec-cancel-btn" onclick="closeRecurringForm()">Cancel</button>
           <button class="rec-save-btn" onclick="saveRecurringItem()">Save</button>
         </div>
+        <button class="rec-delete-btn" id="rec-form-delete" style="display:none" onclick="deleteEditingRecurringItem()">Delete recurring item</button>
       </div>
       <div id="recurring-list"></div>
       <button class="modal-close" onclick="closeRecurringModal()">Close</button>
@@ -615,15 +626,22 @@ function showToast(msg, isError = false) {
 // ── Hero summary (Add tab) ────────────────────────────────────
 function loadHeroSummary(expenses) {
   const now = new Date();
-  const thisKey = monthKey(now);
-  const lastKey = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-  const thisTotal = sumMonth(expenses, thisKey);
-  const lastTotal = sumMonth(expenses, lastKey);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const start = new Date(today);
+  start.setDate(start.getDate() - 13);
+  const previousStart = new Date(start);
+  previousStart.setDate(previousStart.getDate() - 14);
+  const dateKey = date => date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+  const startKey = dateKey(start);
+  const todayKey = dateKey(today);
+  const previousStartKey = dateKey(previousStart);
+  const thisTotal = expenses.filter(e => e.date >= startKey && e.date <= todayKey).reduce((sum, e) => sum + toTwd(e), 0);
+  const lastTotal = expenses.filter(e => e.date >= previousStartKey && e.date < startKey).reduce((sum, e) => sum + toTwd(e), 0);
   document.getElementById("hero-amount").textContent = "TWD " + thisTotal.toLocaleString();
   const ch = document.getElementById("hero-change");
-  if (lastTotal === 0) { ch.textContent = "No data last month"; return; }
+  if (lastTotal === 0) { ch.textContent = "No data in the previous 14 days"; return; }
   const pct = ((thisTotal - lastTotal) / lastTotal * 100).toFixed(1);
-  ch.textContent = (pct >= 0 ? "↑ " : "↓ ") + Math.abs(pct) + "% vs last month";
+  ch.textContent = (pct >= 0 ? "↑ " : "↓ ") + Math.abs(pct) + "% vs previous 14 days";
 }
 
 // ── Submit (add + edit) ───────────────────────────────────────
@@ -760,7 +778,13 @@ function renderHistory(expenses) {
   const el = document.getElementById("history-list");
   if (!list.length) { el.innerHTML = '<div class="empty">No expenses found.</div>'; return; }
   el.replaceChildren();
-  list.forEach((expense) => {
+  list.forEach((expense, index) => {
+    if (index > 0 && expense.date !== list[index - 1].date) {
+      const divider = document.createElement("div");
+      divider.className = "history-day-divider";
+      divider.setAttribute("aria-hidden", "true");
+      el.append(divider);
+    }
     const wrapper = document.createElement("div");
     wrapper.className = "swipe-wrapper";
 
@@ -1114,7 +1138,16 @@ function renderRecurringList() {
 
     const info = document.createElement("div");
     info.className = "recurring-info";
-    info.innerHTML = `<div class="rec-name">${item.name}</div><div class="rec-freq">Every ${ordinal(item.day)}</div><div class="rec-detail">${item.category}</div>`;
+    const name = document.createElement("div");
+    name.className = "rec-name";
+    name.textContent = item.name;
+    const frequency = document.createElement("div");
+    frequency.className = "rec-freq";
+    frequency.textContent = `Every ${ordinal(item.day)}`;
+    const detail = document.createElement("div");
+    detail.className = "rec-detail";
+    detail.textContent = item.category + (item.method ? ` · ${item.method}` : "");
+    info.append(name, frequency, detail);
 
     const amount = document.createElement("div");
     amount.className = "recurring-amount";
@@ -1129,13 +1162,7 @@ function renderRecurringList() {
     editBtn.textContent = "✏️";
     editBtn.onclick = () => openRecurringForm(item);
 
-    const delBtn = document.createElement("button");
-    delBtn.className = "rec-icon-btn rec-delete-btn";
-    delBtn.setAttribute("aria-label", "Delete");
-    delBtn.textContent = "🗑️";
-    delBtn.onclick = () => deleteRecurringItem(item.id);
-
-    actions.append(editBtn, delBtn);
+    actions.append(editBtn);
     div.append(icon, info, amount, actions);
     el.append(div);
   });
@@ -1149,6 +1176,8 @@ function openRecurringForm(item = null) {
   document.getElementById("rec-amount").value = item ? item.amount : "";
   document.getElementById("rec-currency").value = item ? item.currency : "TWD";
   document.getElementById("rec-category").value = item ? item.category : "Entertainment";
+  document.getElementById("rec-method").value = item?.method || "";
+  document.getElementById("rec-form-delete").style.display = item ? "block" : "none";
   form.style.display = "block";
   document.getElementById("rec-name").focus();
 }
@@ -1164,28 +1193,37 @@ function saveRecurringItem() {
   const amount = parseFloat(document.getElementById("rec-amount").value);
   const currency = document.getElementById("rec-currency").value;
   const category = document.getElementById("rec-category").value;
+  const method = document.getElementById("rec-method").value;
 
   if (!name) { showToast("Name is required", true); return; }
   if (!day || day < 1 || day > 31) { showToast("Enter a day between 1–31", true); return; }
   if (!amount || amount <= 0) { showToast("Enter a valid amount", true); return; }
+  if (!method) { showToast("Select a payment method", true); return; }
 
   const items = loadRecurringItems();
+  const wasEditing = Boolean(editingRecurringId);
   if (editingRecurringId) {
     const idx = items.findIndex(i => i.id === editingRecurringId);
-    if (idx !== -1) items[idx] = { ...items[idx], name, day, amount, currency, category };
+    if (idx !== -1) items[idx] = { ...items[idx], name, day, amount, currency, category, method };
   } else {
-    items.push({ id: crypto.randomUUID(), name, day, amount, currency, category });
+    items.push({ id: crypto.randomUUID(), name, day, amount, currency, category, method });
   }
   saveRecurringItems(items);
   closeRecurringForm();
   renderRecurringList();
-  showToast(editingRecurringId ? "Updated ✓" : "Added ✓");
+  showToast(wasEditing ? "Updated ✓" : "Added ✓");
+}
+
+function deleteEditingRecurringItem() {
+  if (!editingRecurringId) return;
+  deleteRecurringItem(editingRecurringId);
 }
 
 function deleteRecurringItem(id) {
   if (!confirm("Delete this recurring item?")) return;
   const items = loadRecurringItems().filter(i => i.id !== id);
   saveRecurringItems(items);
+  closeRecurringForm();
   renderRecurringList();
   showToast("Deleted");
 }
