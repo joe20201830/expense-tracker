@@ -10,6 +10,7 @@ const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const DEFAULT_CURRENCY = process.env.DEFAULT_CURRENCY || "TWD";
 const API_TOKEN = (process.env.API_TOKEN || "").trim();
 const SHEET_NAME = "Sheet1";
+const DRAFT_SHEET_NAME = "ApplePayDrafts";
 
 const VALID_CURRENCIES = ["TWD", "USD"];
 const VALID_CATEGORIES = ["Food", "Transport", "Shopping", "Health", "Entertainment", "Bills", "Travel", "Other"];
@@ -205,6 +206,51 @@ async function fetchExpenses() {
   }));
 }
 
+async function getDraftSheetId(sheets, create = false) {
+  const result = await sheets.spreadsheets.get({
+    spreadsheetId: SPREADSHEET_ID,
+    fields: "sheets.properties(sheetId,title)",
+  });
+  const existing = result.data.sheets?.find(entry => entry.properties?.title === DRAFT_SHEET_NAME);
+  if (existing) return existing.properties.sheetId;
+  if (!create) return null;
+  const added = await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    requestBody: { requests: [{ addSheet: { properties: { title: DRAFT_SHEET_NAME } } }] },
+  });
+  const sheetId = added.data.replies[0].addSheet.properties.sheetId;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${DRAFT_SHEET_NAME}!A1:I1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [["ID", "Date", "Amount", "Currency", "Merchant", "Method", "Created At", "Category", "Tag"]] },
+  });
+  return sheetId;
+}
+
+function draftFromRow([id, date, amount, currency, merchant, method, createdAt, category, tag]) {
+  return { id, date, amount: Number(amount), currency, merchant: merchant || "", method: method || "", createdAt, category: category || "", tag: tag || "" };
+}
+
+function validateDraftPayload(payload) {
+  const { date, amount, currency, merchant, method, category, tag } = payload || {};
+  const draftCurrency = currency || DEFAULT_CURRENCY;
+  const draftMerchant = merchant == null ? "" : merchant;
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date) return { error: "Valid date is required" };
+  if (amount == null || !Number.isFinite(Number(amount)) || Number(amount) <= 0) return { error: "Amount must be positive" };
+  if (!VALID_CURRENCIES.includes(draftCurrency)) return { error: "Invalid currency" };
+  if (typeof draftMerchant !== "string" || draftMerchant.length > 200) return { error: "Merchant max 200 characters" };
+  if (method && !VALID_METHODS.includes(method)) return { error: "Invalid payment method" };
+  if (category && !VALID_CATEGORIES.includes(category)) return { error: "Invalid category" };
+  if (typeof tag !== "undefined" && (typeof tag !== "string" || tag.length > 60)) return { error: "Tag max 60 characters" };
+  return { draft: { date, amount: Number(amount), currency: draftCurrency, merchant: draftMerchant.trim(), method: method || "", category: category || "", tag: tag || "" } };
+}
+
+function requireDraftToken(req, res) {
+  if (!API_TOKEN) { json(res, 503, { ok: false, error: "API token must be configured" }); return false; }
+  return requireApiToken(req, res);
+}
+
 async function handler(req, res) {
   const requestPath = new URL(req.url, "http://localhost").pathname.replace(/^\/api(?=\/|$)/, "") || "/";
   const staticFile = getStaticFile(requestPath);
@@ -219,6 +265,86 @@ async function handler(req, res) {
     } catch {
       res.writeHead(404);
       return res.end("Not found");
+    }
+  }
+
+  if (requestPath === "/apple-pay-drafts" && (req.method === "GET" || req.method === "POST")) {
+    if (!requireDraftToken(req, res)) return;
+    try {
+      const sheets = google.sheets({ version: "v4", auth: getAuthClient() });
+      if (req.method === "GET") {
+        if (await getDraftSheetId(sheets) == null) return json(res, 200, { ok: true, drafts: [] });
+        const result = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${DRAFT_SHEET_NAME}!A:I` });
+        const drafts = (result.data.values || []).slice(1).reverse().map(draftFromRow);
+        return json(res, 200, { ok: true, drafts });
+      }
+      let body;
+      try { body = await parseBody(req); } catch { return json(res, 400, { ok: false, error: "Invalid JSON body" }); }
+      const { draft, error } = validateDraftPayload(body);
+      if (error) return json(res, 400, { ok: false, error });
+      await getDraftSheetId(sheets, true);
+      const id = randomUUID();
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${DRAFT_SHEET_NAME}!A:I`,
+        valueInputOption: "RAW",
+        insertDataOption: "INSERT_ROWS",
+        requestBody: { values: [[id, draft.date, draft.amount, draft.currency, draft.merchant, draft.method, new Date().toISOString(), draft.category, draft.tag]] },
+      });
+      return json(res, 200, { ok: true, id });
+    } catch (e) {
+      console.error("Apple Pay drafts error:", e.message);
+      return json(res, 500, { ok: false, error: "Failed to access Apple Pay drafts" });
+    }
+  }
+
+  const draftRoute = requestPath.match(/^\/apple-pay-draft\/([0-9a-f-]{36})(\/finalize)?$/);
+  if (draftRoute && ["PUT", "DELETE", "POST"].includes(req.method)) {
+    if (!requireDraftToken(req, res)) return;
+    const id = draftRoute[1];
+    const finalizing = req.method === "POST" && draftRoute[2] === "/finalize";
+    if (req.method === "POST" && !finalizing) return json(res, 405, { ok: false, error: "Method not allowed" });
+    let body;
+    if (req.method !== "DELETE") {
+      try { body = await parseBody(req); } catch { return json(res, 400, { ok: false, error: "Invalid JSON body" }); }
+      const validation = finalizing ? validateExpensePayload(body) : validateDraftPayload(body);
+      if (validation.error) return json(res, 400, { ok: false, error: validation.error });
+      body = finalizing ? validation.expense : validation.draft;
+    }
+    try {
+      const sheets = google.sheets({ version: "v4", auth: getAuthClient() });
+      const sheetId = await getDraftSheetId(sheets);
+      if (sheetId == null) return json(res, 404, { ok: false, error: "Draft not found" });
+      const result = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${DRAFT_SHEET_NAME}!A:I` });
+      const rows = result.data.values || [];
+      const rowIndex = rows.findIndex(row => row[0] === id);
+      if (rowIndex === -1 && finalizing) {
+        const expenses = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!H:H` });
+        if ((expenses.data.values || []).some(row => row[0] === id)) return json(res, 200, { ok: true });
+      }
+      if (rowIndex === -1) return json(res, 404, { ok: false, error: "Draft not found" });
+      if (req.method === "PUT") {
+        const createdAt = rows[rowIndex][6];
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `${DRAFT_SHEET_NAME}!A${rowIndex + 1}:I${rowIndex + 1}`,
+          valueInputOption: "RAW",
+          requestBody: { values: [[id, body.date, body.amount, body.currency, body.merchant, body.method, createdAt, body.category, body.tag]] },
+        });
+        return json(res, 200, { ok: true });
+      }
+      if (finalizing) {
+        const expenses = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!H:H` });
+        if (!(expenses.data.values || []).some(row => row[0] === id)) await appendExpense({ ...body, id });
+      }
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: "ROWS", startIndex: rowIndex, endIndex: rowIndex + 1 } } }] },
+      });
+      return json(res, 200, { ok: true });
+    } catch (e) {
+      console.error("Apple Pay draft error:", e.message);
+      return json(res, 500, { ok: false, error: "Failed to update Apple Pay draft" });
     }
   }
 

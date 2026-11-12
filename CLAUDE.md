@@ -20,6 +20,7 @@ Single-file Node.js HTTP server (`server.js`) + single-page app (`index.html`). 
 - `POST /api/expense` — validates body, appends one row to Sheet
 - `PUT /api/expense/:id` — updates a row by UUID (full sheet scan to find the row)
 - `DELETE /api/expense/:id` — deletes a row by UUID (full sheet scan to find the row)
+- `/api/apple-pay-drafts` and `/api/apple-pay-draft/:id` — authenticated pending Wallet transactions in the `ApplePayDrafts` Sheet tab; finalization writes to `Sheet1`
 - `GET /manifest.json`, `/sw.js`, `/icon.png` — static PWA assets
 
 **`index.html`** — fully self-contained SPA. All CSS and JS inline. Three tabs managed by `switchTab()`:
@@ -37,13 +38,13 @@ All Sheet access goes through `googleapis` with a service account. Auth picks cr
 
 Sheet columns: `Date | Amount | Currency | Category | Description | Method | Logged At | ID | Tag`
 
-Sheet name is hardcoded as `SHEET_NAME = "Sheet1"`. To add a second tab, create a new read/write function and change the range prefix (e.g. `Budget!A:C`).
+Expense rows use `Sheet1`; pending Apple Pay drafts use `ApplePayDrafts` (created on first draft). See `APPLE_PAY_SETUP.md` for the iPhone automation.
 
 ## Environment variables
 
 | Variable | Notes |
 |----------|-------|
-| `API_TOKEN` | Shared bearer token for the deployed app API |
+| `API_TOKEN` | Shared bearer token for the deployed app API; required for Apple Pay draft routes |
 | `SPREADSHEET_ID` | Google Sheet ID from URL |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | Full credentials JSON as a string (production) |
 | `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` | Path to credentials file (local, defaults to `./credentials.json`) |

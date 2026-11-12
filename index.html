@@ -60,6 +60,25 @@
     .amount-row input { flex: 1; }
     .amount-row select { width: 88px; flex-shrink: 0; }
     .tag-new-input { margin-top: 8px; }
+    .field-label-row { display: flex; align-items: baseline; justify-content: space-between; }
+    .category-help-btn { border: 0; background: none; color: var(--gold); font-size: .76rem; font-weight: 600; cursor: pointer; padding: 0 0 6px 8px; }
+    .category-guide { width: min(420px, calc(100% - 32px)); max-height: min(75dvh, 620px); margin: auto; padding: 20px; border: 1px solid var(--border); border-radius: 18px; background: var(--card); color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+    .category-guide::backdrop { background: rgba(0,0,0,.7); }
+    .category-guide-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+    .category-guide h2 { font-size: 1.1rem; }
+    .category-guide-close { border: 0; background: none; color: var(--muted); font-size: 1.5rem; line-height: 1; cursor: pointer; padding: 4px; }
+    .category-guide-intro { color: var(--muted); font-size: .8rem; line-height: 1.5; margin-bottom: 14px; }
+    .category-guide-list { display: grid; gap: 6px; }
+    .category-guide-item { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--card2); }
+    .category-guide-item strong { display: block; font-size: .85rem; margin-bottom: 3px; }
+    .category-guide-item span { display: block; color: var(--muted); font-size: .76rem; line-height: 1.4; }
+    .draft-card { margin: 0 16px 14px; padding: 14px; border: 1px solid var(--gold); border-radius: 14px; background: var(--card); }
+    .draft-card h2 { font-size: .88rem; margin-bottom: 4px; }
+    .draft-card p { color: var(--muted); font-size: .76rem; line-height: 1.4; margin-bottom: 10px; }
+    .draft-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); }
+    .draft-row-info { min-width: 0; flex: 1; font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .draft-row button { flex-shrink: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--card2); color: var(--text); font-size: .74rem; cursor: pointer; }
+    .draft-row.active button:first-of-type { border-color: var(--gold); color: var(--gold); }
     select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23B1A9C8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
     .submit-btn { width: 100%; height: 54px; background: var(--primary); color: var(--on-primary); border: none; border-radius: 14px; font-size: 1.05rem; font-weight: 700; cursor: pointer; transition: background .15s, transform .1s; margin-top: 6px; }
     .submit-btn:active { transform: scale(.98); background: var(--primary-dark); }
@@ -187,6 +206,12 @@
 
     <div class="edit-mode-banner" id="edit-banner">✏️ Editing expense — make changes and tap Update</div>
 
+    <div class="draft-card" id="apple-pay-drafts" hidden>
+      <h2>Apple Pay drafts</h2>
+      <p>Review the details, choose a category if needed, then save. Drafts stay pending until saved or discarded.</p>
+      <div id="apple-pay-draft-list"></div>
+    </div>
+
     <div class="hero-card">
       <div class="hero-label">Spending in the Last 14 Days</div>
       <div class="hero-amount" id="hero-amount">—</div>
@@ -210,17 +235,22 @@
           </div>
         </div>
         <div class="field">
-          <label for="category">Category</label>
-          <select id="category">
-            <option>Food</option><option>Transport</option><option>Shopping</option>
+          <div class="field-label-row">
+            <label for="category">Category</label>
+            <button type="button" class="category-help-btn" aria-haspopup="dialog" aria-controls="category-guide" onclick="openCategoryGuide()">分類參考</button>
+          </div>
+          <select id="category" required>
+            <option value="" disabled>Choose category</option>
+            <option selected>Food</option><option>Transport</option><option>Shopping</option>
             <option>Health</option><option>Entertainment</option><option>Bills</option>
             <option>Travel</option><option>Other</option>
           </select>
         </div>
         <div class="field">
           <label for="method">Payment Method</label>
-          <select id="method">
-            <option>Cash</option>
+          <select id="method" required>
+            <option value="" disabled>Choose payment method</option>
+            <option selected>Cash</option>
             <option>Credit Card (國泰)</option>
             <option>EtherFi</option>
           </select>
@@ -238,6 +268,7 @@
           <textarea id="description" placeholder="e.g. Lunch with team"></textarea>
         </div>
         <button type="submit" class="submit-btn" id="submit-btn">+ Add Expense</button>
+        <button type="button" class="cancel-btn" id="pause-draft-btn" onclick="pauseApplePayDraft()">Save Draft for Later</button>
         <button type="button" class="cancel-btn" id="cancel-edit-btn" onclick="cancelEdit()">Cancel Edit</button>
       </form>
     </div>
@@ -404,11 +435,32 @@
   </div>
 </div>
 
+<dialog class="category-guide" id="category-guide" aria-labelledby="category-guide-title">
+  <div class="category-guide-header">
+    <h2 id="category-guide-title">分類參考</h2>
+    <button type="button" class="category-guide-close" aria-label="關閉分類參考" onclick="document.getElementById('category-guide').close()">&times;</button>
+  </div>
+  <p class="category-guide-intro">分類依消費內容選擇；旅行可另外加標籤。若不確定，選最接近的分類並在備註寫明。</p>
+  <div class="category-guide-list">
+    <div class="category-guide-item"><strong>Food｜餐飲與食材</strong><span>餐廳、咖啡、飲料、全聯的食物與食材。</span></div>
+    <div class="category-guide-item"><strong>Transport｜交通</strong><span>捷運、台鐵、計程車、停車費、機票。</span></div>
+    <div class="category-guide-item"><strong>Shopping｜購物</strong><span>衣物、電子產品、生活用品、全聯的非食品。</span></div>
+    <div class="category-guide-item"><strong>Health｜醫療健康</strong><span>看醫生、牙醫、藥品、隱形眼鏡。</span></div>
+    <div class="category-guide-item"><strong>Entertainment｜休閒娛樂</strong><span>電影、抱石、游泳、遊戲與影音訂閱。</span></div>
+    <div class="category-guide-item"><strong>Bills｜帳單與固定費用</strong><span>網路費、電信費、水電費、保費、工作軟體訂閱。</span></div>
+    <div class="category-guide-item"><strong>Travel｜旅遊服務</strong><span>住宿、行程、旅平險、旅遊 eSIM；機票仍放 Transport。</span></div>
+    <div class="category-guide-item"><strong>Other｜其他服務</strong><span>剪頭髮、洗衣、洗車，或暫時無法歸入以上分類的支出。</span></div>
+  </div>
+</dialog>
+
 <div id="toast"></div>
 
 <script>
 const ICONS = { Food:"🍜", Transport:"🚌", Shopping:"🛍️", Health:"💊", Entertainment:"🎬", Bills:"📋", Travel:"✈️", Other:"📦" };
 const CAT_COLORS = { Food:"#F1846B", Transport:"#55B8B2", Shopping:"#F6C65B", Health:"#86C8A7", Entertainment:"#D84F83", Bills:"#A97AC8", Travel:"#758ED5", Other:"#B48CA7" };
+function openCategoryGuide() {
+  document.getElementById("category-guide").showModal();
+}
 const PIE_COLORS = ["#543064", "#684078", "#7D518B", "#93639E", "#AA77AF", "#C18CBF", "#D8A4CA", "#E9BDD2"];
 const PIE_LABEL_COLORS = ["#FFF4E6", "#FFF4E6", "#FFF4E6", "#FFF4E6", "#FFF4E6", "#181126", "#181126", "#181126"];
 const CHART_COLORS = { text:"#FFF4E6", muted:"#B1A9C8", grid:"#38436A", card:"#1A2144", bar:"#4C4B78", gold:"#F6C65B" };
@@ -445,12 +497,14 @@ const piePercentageLabels = {
 };
 
 const today = new Date().toLocaleDateString("en-CA");
+let applePayDrafts = [];
 let allExpenses = null;
 let monthlyChart = null;
 let tagChart = null;
 let analyticsLoaded = false;
 let historyLoaded = false;
 let editingId = null;
+let activeApplePayDraftId = null;
 let openSwipeItem = null;
 let historyLimit = 10;
 let usdToTwd = 32;
@@ -469,10 +523,130 @@ async function fetchRate() {
 // ── Init ──────────────────────────────────────────────────────
 document.getElementById("date").value = today;
 document.getElementById("today-label").textContent = new Date().toLocaleDateString("en", { weekday:"long", month:"long", day:"numeric" });
-fetchRate().then(() => fetchAll().then(expenses => {
-  loadHeroSummary(expenses);
+const ratePromise = fetchRate();
+fetchAll().then(expenses => {
   refreshTagOptions(expenses);
-}).catch(() => {}));
+  suggestCategoryForApplePayDraft(expenses);
+  ratePromise.then(() => loadHeroSummary(expenses));
+  loadApplePayDrafts();
+}).catch(() => {});
+
+async function loadApplePayDrafts() {
+  try {
+    const res = await apiRequest("/api/apple-pay-drafts");
+    const data = await readJsonResponse(res);
+    if (!data.ok) throw new Error(data.error);
+    applePayDrafts = data.drafts;
+    renderApplePayDrafts();
+  } catch (error) {
+    const card = document.getElementById("apple-pay-drafts");
+    card.hidden = false;
+    document.getElementById("apple-pay-draft-list").textContent = error.message === "API token must be configured" ? "Apple Pay drafts need an API token before they can be used." : "Could not load Apple Pay drafts.";
+  }
+}
+
+function renderApplePayDrafts() {
+  const card = document.getElementById("apple-pay-drafts");
+  card.hidden = !applePayDrafts.length;
+  const list = document.getElementById("apple-pay-draft-list");
+  list.replaceChildren();
+  applePayDrafts.forEach(draft => {
+    const row = document.createElement("div");
+    row.className = "draft-row" + (draft.id === activeApplePayDraftId ? " active" : "");
+    const info = document.createElement("span");
+    info.className = "draft-row-info";
+    info.textContent = `${draft.date} · ${draft.currency} ${Number(draft.amount).toLocaleString()}${draft.merchant ? " · " + draft.merchant : ""}`;
+    const review = document.createElement("button");
+    review.type = "button";
+    review.textContent = draft.id === activeApplePayDraftId ? "Reviewing" : "Review";
+    review.onclick = () => reviewApplePayDraft(draft.id);
+    const discard = document.createElement("button");
+    discard.type = "button";
+    discard.setAttribute("aria-label", "Discard Apple Pay draft");
+    discard.textContent = "Discard";
+    discard.onclick = () => discardApplePayDraft(draft.id);
+    row.append(info, review, discard);
+    list.append(row);
+  });
+}
+
+async function reviewApplePayDraft(id) {
+  if (activeApplePayDraftId && activeApplePayDraftId !== id && !(await pauseApplePayDraft())) return;
+  const draft = applePayDrafts.find(item => item.id === id);
+  if (!draft) return;
+  if (editingId) cancelEdit();
+  activeApplePayDraftId = id;
+  document.getElementById("date").value = draft.date;
+  document.getElementById("amount").value = draft.amount;
+  document.getElementById("currency").value = draft.currency;
+  document.getElementById("method").value = draft.method || "";
+  document.getElementById("category").value = draft.category || "";
+  document.getElementById("description").value = draft.merchant;
+  setSelectedTag(draft.tag || "");
+  document.getElementById("pause-draft-btn").style.display = "block";
+  renderApplePayDrafts();
+  if (allExpenses) suggestCategoryForApplePayDraft(allExpenses);
+  switchTab("add");
+  document.querySelector("#tab-add .card").scrollIntoView({ behavior: "smooth" });
+}
+
+async function pauseApplePayDraft() {
+  if (!activeApplePayDraftId) return true;
+  const draft = {
+    date: document.getElementById("date").value,
+    amount: Number(document.getElementById("amount").value),
+    currency: document.getElementById("currency").value,
+    method: document.getElementById("method").value,
+    category: document.getElementById("category").value,
+    merchant: document.getElementById("description").value.trim(),
+    tag: getSelectedTag(),
+  };
+  try {
+    const res = await apiRequest(`/api/apple-pay-draft/${activeApplePayDraftId}`, { method: "PUT", body: JSON.stringify(draft) });
+    const data = await readJsonResponse(res);
+    if (!data.ok) throw new Error(data.error);
+    const saved = applePayDrafts.find(item => item.id === activeApplePayDraftId);
+    if (saved) Object.assign(saved, draft);
+  } catch (error) {
+    showToast(error.message || "Could not save draft", true);
+    return false;
+  }
+  activeApplePayDraftId = null;
+  document.getElementById("pause-draft-btn").style.display = "none";
+  document.getElementById("form").reset();
+  document.getElementById("date").value = today;
+  setSelectedTag("");
+  renderApplePayDrafts();
+  return true;
+}
+
+async function discardApplePayDraft(id) {
+  if (!confirm("Discard this Apple Pay draft?")) return;
+  try {
+    const res = await apiRequest(`/api/apple-pay-draft/${id}`, { method: "DELETE" });
+    const data = await readJsonResponse(res);
+    if (!data.ok) throw new Error(data.error);
+    applePayDrafts = applePayDrafts.filter(draft => draft.id !== id);
+    if (activeApplePayDraftId === id) {
+      activeApplePayDraftId = null;
+      document.getElementById("pause-draft-btn").style.display = "none";
+      document.getElementById("form").reset();
+      document.getElementById("date").value = today;
+      setSelectedTag("");
+    }
+    renderApplePayDrafts();
+  } catch (error) { showToast(error.message || "Could not discard draft", true); }
+}
+
+function suggestCategoryForApplePayDraft(expenses) {
+  const draft = applePayDrafts.find(item => item.id === activeApplePayDraftId);
+  const categoryField = document.getElementById("category");
+  if (!draft?.merchant || categoryField.value) return;
+  const merchant = draft.merchant.trim().toLocaleLowerCase();
+  const matches = expenses.filter(expense => expense.description?.trim().toLocaleLowerCase() === merchant);
+  if (matches.length < 2 || !matches.every(expense => expense.category === matches[0].category)) return;
+  categoryField.value = matches[0].category;
+}
 
 function clearApiToken() {
   apiToken = "";
@@ -659,12 +833,19 @@ document.getElementById("form").addEventListener("submit", async (e) => {
     description: document.getElementById("description").value.trim(),
   };
   try {
-    const url = editingId ? `/api/expense/${editingId}` : "/api/expense";
+    const url = editingId ? `/api/expense/${editingId}` : activeApplePayDraftId ? `/api/apple-pay-draft/${activeApplePayDraftId}/finalize` : "/api/expense";
     const method = editingId ? "PUT" : "POST";
     const res = await apiRequest(url, { method, body: JSON.stringify(payload) });
     const data = await readJsonResponse(res);
     if (data.ok) {
       showToast(editingId ? "Updated ✓" : "Saved ✓");
+      if (activeApplePayDraftId) {
+        const savedDraftId = activeApplePayDraftId;
+        activeApplePayDraftId = null;
+        document.getElementById("pause-draft-btn").style.display = "none";
+        applePayDrafts = applePayDrafts.filter(draft => draft.id !== savedDraftId);
+        renderApplePayDrafts();
+      }
       if (editingId) {
         cancelEdit();
       } else {
@@ -687,7 +868,8 @@ document.getElementById("form").addEventListener("submit", async (e) => {
 });
 
 // ── Edit / Delete ─────────────────────────────────────────────
-function startEdit(expense) {
+async function startEdit(expense) {
+  if (activeApplePayDraftId && !(await pauseApplePayDraft())) return;
   editingId = expense.id;
   document.getElementById("date").value = expense.date;
   document.getElementById("amount").value = expense.amount;
