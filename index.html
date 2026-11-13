@@ -509,7 +509,11 @@ let openSwipeItem = null;
 let historyLimit = 10;
 let usdToTwd = 32;
 let rateSource = "fallback";
-let apiToken = sessionStorage.getItem(API_TOKEN_STORAGE_KEY) || "";
+let apiToken = localStorage.getItem(API_TOKEN_STORAGE_KEY) || sessionStorage.getItem(API_TOKEN_STORAGE_KEY) || "";
+if (apiToken) {
+  localStorage.setItem(API_TOKEN_STORAGE_KEY, apiToken);
+  sessionStorage.removeItem(API_TOKEN_STORAGE_KEY);
+}
 
 async function fetchRate() {
   try {
@@ -650,6 +654,7 @@ function suggestCategoryForApplePayDraft(expenses) {
 
 function clearApiToken() {
   apiToken = "";
+  localStorage.removeItem(API_TOKEN_STORAGE_KEY);
   sessionStorage.removeItem(API_TOKEN_STORAGE_KEY);
 }
 
@@ -663,7 +668,7 @@ async function ensureApiToken(forcePrompt = false) {
   }
 
   apiToken = value.trim();
-  sessionStorage.setItem(API_TOKEN_STORAGE_KEY, apiToken);
+  localStorage.setItem(API_TOKEN_STORAGE_KEY, apiToken);
   return apiToken;
 }
 
